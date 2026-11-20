@@ -27,10 +27,14 @@ jobs:
             https://github.com/KernelSU-Next/KernelSU-Next.git candidates/ksu-next > report/ksu-next-clone.log 2>&1
           git clone --depth 1 --filter=blob:none --branch main \
             https://github.com/tiann/KernelSU.git candidates/ksu-main > report/ksu-main-clone.log 2>&1
+          git clone --depth 1 --filter=blob:none --branch master \
+            https://github.com/LyraVoid/FinaSU.git candidates/finasu > report/finasu-clone.log 2>&1
           echo 'aa235b99574b5b349cdb4980bcb98fd58e6abb28  ksu-next' > report/expected-shas.txt
           echo 'ff70c90d6de46b80b79d0c74d360d85611797b27  ksu-main' >> report/expected-shas.txt
+          echo 'f96445f966a2c3f4c1257938acf0449757be8a04  finasu' >> report/expected-shas.txt
           for entry in 'ksu-next aa235b99574b5b349cdb4980bcb98fd58e6abb28' \
-                       'ksu-main ff70c90d6de46b80b79d0c74d360d85611797b27'; do
+                       'ksu-main ff70c90d6de46b80b79d0c74d360d85611797b27' \
+                       'finasu f96445f966a2c3f4c1257938acf0449757be8a04'; do
             set -- $entry
             actual="$(git -C "candidates/$1" rev-parse HEAD)"
             echo "$1 $actual" >> report/actual-shas.txt
@@ -67,7 +71,7 @@ jobs:
             echo 'Read-only symbol presence only. This DOES NOT prove symbols are defined, linked or compatible.'
             echo
           } > report/SUMMARY.md
-          for candidate in ksu-next ksu-main; do
+          for candidate in ksu-next ksu-main finasu; do
             echo "## $candidate" >> report/SUMMARY.md
             for sym in $(cat report/undefined-symbols.txt); do
               if git -C "candidates/$candidate" grep -n -F -w -- "$sym" -- kernel/ > "report/$candidate-$sym.txt" 2>/dev/null; then
