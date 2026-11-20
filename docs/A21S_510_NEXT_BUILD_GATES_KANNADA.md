@@ -16,7 +16,7 @@
 - [SUSFS vendor patch dry-run](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685770287): **pass**, ಆದರೆ ಕೆಲವು hunks `fuzz 1/2` ಮೇಲೆ ಅವಲಂಬಿತ. ಕೇವಲ dry-run.
 - [Strict patch apply probe](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44721235538): **fail**; `--fuzz=0` ನಲ್ಲಿ vendor source contexts ಹೊಂದಲಿಲ್ಲ.
 - [Disposable patch+SUSFS source compile probe](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44721648493): patch ಅನ್ವಯಿಸಲ್ಪಟ್ಟರೂ `fs/susfs.o` **compile fail** — `SUSFS_LOGI_RL` macro/function declarations missing. ಇದು kernel integration ಪೂರ್ಣಗೊಂಡಿಲ್ಲದಿರುವುದಕ್ಕೆ ಸ್ಪಷ್ಟ ಸಾಕ್ಷಿ.
-- [SUSFS macro definition diagnostic](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44722244307): upstream source/Kconfig diagnostics ಸಂಗ್ರಹಿಸುವ ಹೊಸ ಪರೀಕ್ಷೆ; CI run ಫಲಿತಾಂಶ ಪರಿಶೀಲಿಸಬೇಕು.
+- [SUSFS macro definition diagnostic](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44722244307): compiler error ನ ನಿಖರ ಕಾರಣ ಗುರುತಿಸಲಾಗಿದೆ. Upstream `fs/susfs.c` ನಲ್ಲಿ `SUSFS_LOGI_RL` ಅನ್ನು **`CONFIG_KSU_SUSFS_ENABLE_LOG` ಸಕ್ರಿಯವಾಗಿದ್ದರೆ ಮಾತ್ರ** ವ್ಯಾಖ್ಯಾನಿಸಲಾಗಿದೆ; logging OFF ಆಗಿರುವ `#else` ನಲ್ಲಿ `SUSFS_LOGI_RL` macro ಇಲ್ಲ. [ಹೊಸ isolated compile probe](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44722713097) ಈ logging option ON ಮಾಡಿ ಪರೀಕ್ಷಿಸುತ್ತದೆ. ಇದು production config ಗೆ ಬದಲಾವಣೆ ಅಲ್ಲ.
 - In-tree KernelSU source `KernelSU` ಅಥವಾ `drivers/kernelsu` ಸಾಮಾನ್ಯ ಸ್ಥಳಗಳಲ್ಲಿ ಸಿಕ್ಕಿಲ್ಲ; `arch/arm64/configs/ksu.config` ಇರುವುದರಿಂದ ಮಾತ್ರ functional KernelSU ಇರುವುದಿಲ್ಲ.
 - **SUSFS + KernelSU ಪೂರ್ಣ compile/link/run ಇನ್ನೂ ಪೂರ್ತಿಯಾಗಿಲ್ಲ.**
 
