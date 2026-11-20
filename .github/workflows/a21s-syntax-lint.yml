@@ -1,0 +1,52 @@
+name: A21s source script syntax preflight (NO FLASH)
+on:
+  push:
+    branches: [a21s-susfs-port]
+    paths:
+      - 'a21s_porting/*.py'
+      - 'a21s_porting/*.sh'
+      - '.github/workflows/a21s-syntax-lint.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-script-syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout only A21s helper scripts
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            a21s_porting
+            .github/workflows/a21s-syntax-lint.yml
+      - name: Bash syntax check (no script execution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in a21s_porting/*.sh; do
+            echo "bash -n $script"
+            bash -n "$script"
+          done
+      - name: Python syntax check (no kernel compile)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in a21s_porting/*.py; do
+            echo "python3 -m py_compile $script"
+            python3 -m py_compile "$script"
+          done
+      - name: Verify SUSFS safety guard in disposable compile probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'CONFIG_KSU_SUSFS_ENABLE_LOG=y' a21s_porting/susfs_compile_probe.sh
+          grep -Fq 'FUZ' a21s_porting/susfs_compile_probe.sh
+          if grep -Fq 'fastboot flash' a21s_porting/susfs_compile_probe.sh; then
+            echo 'Unexpected flashing command in source diagnostic!' >&2
+            exit 1
+          fi
+          echo 'Script guards present; syntax OK; no boot image was produced.'
