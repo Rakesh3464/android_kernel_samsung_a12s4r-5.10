@@ -58,6 +58,9 @@ jobs:
             exit 0
           fi
           git -C susfs rev-parse HEAD > report/susfs-upstream-sha.txt
+          python3 kernel/a21s_porting/susfs_hunk_context.py \\
+            --patch "$chosen" --kernel kernel \\
+            --output report/susfs-failed-hunk-context.md
           git -C kernel rev-parse HEAD > report/kernel-source-sha.txt
           printf '%s\n' "Running --dry-run patch only, applying no changes" > report/READ_ME.txt
           set +e
