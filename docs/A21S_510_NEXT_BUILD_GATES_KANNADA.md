@@ -29,6 +29,13 @@
 - [BOE Clang -Oz one-file -O2 exception #44721849406](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44721849406) ಮೊದಲ -Oz ದೋಷ ತಿದ್ದುಪಡಿ compile ಪ್ರಯೋಗ; ಇನ್ನೂ ಖಚಿತ ಫಲಿತಾಂಶ ಬಂದಿಲ್ಲ.
 - ಮುಂದಿನ release gate ಬದಲಾವಣೆ ಇಲ್ಲ: **boot partition fit, KernelSU integration, full Image linker pass, DTB/DTBO ABI compatibility ಮತ್ತು actual SM-A217F boot test.**
 
+## 20 ನವೆಂಬರ್ — ನಿಜವಾದ SUSFS object compile pass
+
+- [SUSFS `fs/susfs.o` Compile Run #44724199462](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44724199462): **SUCCESS**. Compile log ನಲ್ಲಿ `CC fs/susfs.o`, exit code **0**, `CONFIG_KSU_SUSFS=y`, `CONFIG_KSU_SUSFS_ENABLE_LOG=y`. ಎರಡು `unused function` warnings ಮಾತ್ರ ಕಂಡಿವೆ.
+- ಇದು Linux 5.10 vendor kernel ನ **ತಾತ್ಕಾಲಿಕ checkout**. Original source branch ನಲ್ಲಿ SUSFS source integrate ಆಗಿಲ್ಲ, KernelSU working integration/ABI ಇನ್ನೂ ಸಾಬೀತಾಗಿಲ್ಲ.
+- ಹೊಸ [SUSFS + BOE TD4150 full Image linker Run #44724725016](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44724725016) ನಿಜವಾದ `Image` link ಪರೀಕ್ಷೆಗೆ ಆರಂಭವಾಗಿದೆ. ಇದು logs ಮಾತ್ರ ಉಳಿಸುತ್ತದೆ — flashable `boot.img` ಸೃಷ್ಟಿಸುವುದಿಲ್ಲ.
+- ಕೊನೆಯದಾಗಿ ಯಶಸ್ವಿಯಾದ BOE 5.10 image ನ boot packing ಅಂದಾಜು ಇನ್ನೂ **731,152 bytes ಮಿತಿಮೀರಿದೆ**. ಹೊಸ ಪೂರ್ಣ Image ಗಾತ್ರ ಮತ್ತು ಹೊಂದಾಣಿಕೆ ಪರಿಶೀಲನೆ ಬಾಕಿ.
+
 ## 3. ಸುರಕ್ಷಿತ release gate
 
 1. BOE/TD4150, Synaptics, storage, modem, audio, camera, charging, fingerprints ಮತ್ತು device DTBO bindings ಸಾಮರ್ಥ್ಯ ದೃಢಪಡಿಸಬೇಕು.
