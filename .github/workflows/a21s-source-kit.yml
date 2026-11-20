@@ -1,0 +1,68 @@
+name: Package A21s Linux 5.10 experimental sources (NOT FLASHABLE)
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - 'a21s_porting/**'
+      - 'drivers/video/fbdev/exynos/panel/Kconfig'
+      - 'drivers/video/fbdev/exynos/panel/Makefile'
+      - 'drivers/video/fbdev/exynos/panel/td4150/**'
+      - 'drivers/video/fbdev/exynos/panel/hx83104/**'
+      - 'drivers/video/fbdev/exynos/panel/nt36575/**'
+      - '.github/workflows/a21s-source-kit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-source-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout A21s experimental sources only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            a21s_porting
+            docs/A21S_419_TO_510_DIFF.md
+            drivers/video/fbdev/exynos/panel/Kconfig
+            drivers/video/fbdev/exynos/panel/Makefile
+            drivers/video/fbdev/exynos/panel/td4150
+            drivers/video/fbdev/exynos/panel/hx83104
+            drivers/video/fbdev/exynos/panel/nt36575
+
+      - name: Package source, configurations and documentation only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p kit/panel kit/docs
+          cp -r a21s_porting kit/
+          cp -r drivers/video/fbdev/exynos/panel/td4150 kit/panel/
+          cp -r drivers/video/fbdev/exynos/panel/hx83104 kit/panel/
+          cp -r drivers/video/fbdev/exynos/panel/nt36575 kit/panel/
+          cp drivers/video/fbdev/exynos/panel/Kconfig kit/panel/Kconfig
+          cp drivers/video/fbdev/exynos/panel/Makefile kit/panel/Makefile
+          cp docs/A21S_419_TO_510_DIFF.md kit/docs/
+          cat > kit/NOT_FLASHABLE.txt <<'EOF'
+          Samsung A21s Linux 5.10 experimental development source.
+          NO boot.img, kernel Image, successful full kernel build, or ROM compatibility claim.
+          Not suitable for Odin or custom recovery flash.
+          SUSFS is not integrated. This source package does not prove phone bootability.
+          EOF
+          (cd kit && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum) \
+            > kit/SHA256SUMS.txt
+          zip -q -r A21S_510_SOURCE_ONLY_NOT_FLASHABLE.zip kit
+          unzip -t A21S_510_SOURCE_ONLY_NOT_FLASHABLE.zip | tail -n 1
+
+      - name: Upload source bundle (not a boot image)
+        uses: actions/upload-artifact@v4
+        with:
+          name: A21S-510-PORT-SOURCE-ONLY-NOT-FLASHABLE
+          path: A21S_510_SOURCE_ONLY_NOT_FLASHABLE.zip
+          if-no-files-found: error
+          retention-days: 30
