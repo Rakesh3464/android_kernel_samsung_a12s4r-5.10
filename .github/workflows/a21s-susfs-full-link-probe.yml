@@ -6,6 +6,8 @@ on:
       - a21s-susfs-port
     paths:
       - '.github/workflows/a21s-susfs-full-link-probe.yml'
+      - 'a21s_porting/susfs_compile_probe.sh'
+      - 'a21s_porting/adapt_susfs_patch.py'
   workflow_dispatch:
 
 permissions:
@@ -49,6 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bash -n kernel/a21s_porting/susfs_compile_probe.sh
           bash kernel/a21s_porting/susfs_compile_probe.sh kernel susfs report
 
       - name: Enable A21s BOE TD4150, Synaptics and experimental DTBO
