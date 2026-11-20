@@ -3,7 +3,7 @@ name: A21s 5.10 DTBO base-DTB application gate (NO FLASH)
 on:
   push:
     branches: [a21s-susfs-port]
-    paths: ['.github/workflows/a21s-dtbo-apply-gate.yml', 'arch/arm64/boot/dts/samsung/a21s/**', 'arch/arm64/boot/dts/Makefile', 'arch/arm64/boot/dts/exynos/s5e3830.dts']
+    paths: ['.github/workflows/a21s-dtbo-apply-gate.yml', 'arch/arm64/boot/dts/samsung/a21s/**', 'arch/arm64/boot/dts/Makefile', 'arch/arm64/boot/dts/exynos/s5e3830.dts', 'a21s_porting/dtbo_relocation_audit.py']
   workflow_dispatch:
 
 permissions:
@@ -42,6 +42,17 @@ jobs:
           grep -q '^CONFIG_A21S_EXPERIMENTAL_DTBO=y$' "$GITHUB_WORKSPACE/out/.config"
           timeout 30m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" dtbs > report/dtbs.log 2>&1
           test -s "$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/exynos/s5e3830.dtb"
+      - name: Diagnose every compiled overlay symbol and relocation target
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/exynos/s5e3830.dtb"
+          python3 kernel/a21s_porting/dtbo_relocation_audit.py \
+            --base "$base" \
+            --overlays "$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/samsung/a21s/"*.dtbo \
+            --out-dir report
+          cat report/RELOCATION_AUDIT.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Apply A21s overlays to Linux 5.10 base DTB
         shell: bash
         run: |
