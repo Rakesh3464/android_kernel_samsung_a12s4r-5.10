@@ -31,6 +31,7 @@ def main() -> None:
     for overlay in a.overlays:
         data = {"overlay": overlay.name, "checked": 0, "missing_base_symbols": [],
                 "broken_base_symbol_paths": [], "broken_fixup_sources": [],
+                "bad_overlay_symbol_paths": [], "overlay_symbols_checked": 0,
                 "fixups_error": "", "warning": "NOT BOOT VALIDATED"}
         ok, names = fdtget("-p", overlay, "/__fixups__")
         if not ok:
@@ -38,6 +39,28 @@ def main() -> None:
             results.append(data)
             continue
         labels = names.splitlines()
+        symbols_ok, overlay_symbol_names = fdtget("-p", overlay, "/__symbols__")
+        if symbols_ok:
+            for overlay_symbol in overlay_symbol_names.splitlines():
+                overlay_symbol = overlay_symbol.strip()
+                if not overlay_symbol:
+                    continue
+                data["overlay_symbols_checked"] += 1
+                path_ok, symbol_path = fdtget(
+                    "-t", "s", overlay, "/__symbols__", overlay_symbol)
+                if not path_ok:
+                    data["bad_overlay_symbol_paths"].append(
+                        {"symbol": overlay_symbol, "error": symbol_path[:150]})
+                    continue
+                node_path = symbol_path.split()[0]
+                good, error = fdtget("-p", overlay, node_path)
+                if not good:
+                    data["bad_overlay_symbol_paths"].append(
+                        {"symbol": overlay_symbol, "path": node_path,
+                         "error": error[:150]})
+        else:
+            data["bad_overlay_symbol_paths"].append(
+                {"symbol": "__symbols__", "error": overlay_symbol_names[:150]})
         for label in labels:
             label = label.strip()
             if not label:
@@ -74,12 +97,15 @@ def main() -> None:
                "", "No images are generated. Even a clean diagnostic is NOT a boot validation.", ""]
     for d in results:
         failures = (len(d["missing_base_symbols"]) + len(d["broken_base_symbol_paths"])
-                    + len(d["broken_fixup_sources"]) + bool(d["fixups_error"]))
+                    + len(d["broken_fixup_sources"]) + len(d["bad_overlay_symbol_paths"])
+                    + bool(d["fixups_error"]))
         summary.extend([f"## {d['overlay']}",
                         f"- Fixup symbols checked: {d['checked']}",
                         f"- Missing base symbols: {len(d['missing_base_symbols'])}",
                         f"- Base symbols pointing to absent nodes: {len(d['broken_base_symbol_paths'])}",
                         f"- Fixup references absent in overlay: {len(d['broken_fixup_sources'])}",
+                        f"- Overlay-defined symbols checked: {d['overlay_symbols_checked']}",
+                        f"- Overlay-defined symbols pointing to absent nodes: {len(d['bad_overlay_symbol_paths'])}",
                         f"- Diagnostic: {'RELOCATION ERRORS FOUND' if failures else 'FIXUPS RESOLVED (not board validated)'}"])
         if d["missing_base_symbols"]:
             summary.append("- Missing: " + ", ".join(d["missing_base_symbols"]))
@@ -87,6 +113,8 @@ def main() -> None:
             summary.append(f"- Missing node: {row['symbol']} -> {row['path']}")
         for row in d["broken_fixup_sources"][:12]:
             summary.append(f"- Missing relocation property: {row}")
+        for row in d["bad_overlay_symbol_paths"][:15]:
+            summary.append(f"- Broken overlay symbol: {row}")
         if d["fixups_error"]:
             summary.append("- Error: " + d["fixups_error"])
         summary.append("")
