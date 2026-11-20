@@ -3,7 +3,7 @@ name: A21s 5.10 DTBO base-DTB application gate (NO FLASH)
 on:
   push:
     branches: [a21s-susfs-port]
-    paths: ['.github/workflows/a21s-dtbo-apply-gate.yml', 'arch/arm64/boot/dts/samsung/a21s/**', 'arch/arm64/boot/dts/Makefile']
+    paths: ['.github/workflows/a21s-dtbo-apply-gate.yml', 'arch/arm64/boot/dts/samsung/a21s/**', 'arch/arm64/boot/dts/Makefile', 'arch/arm64/boot/dts/exynos/s5e3830.dts']
   workflow_dispatch:
 
 permissions:
