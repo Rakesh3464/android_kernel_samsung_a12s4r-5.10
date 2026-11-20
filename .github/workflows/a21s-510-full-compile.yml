@@ -1,0 +1,106 @@
+name: A21s Linux 5.10 experimental DTBO and Image compile (NOT FLASHABLE)
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - 'arch/arm64/boot/dts/samsung/a21s/**'
+      - 'arch/arm64/boot/dts/Makefile'
+      - 'drivers/soc/samsung/Kconfig'
+      - '.github/workflows/a21s-510-full-compile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kernel-compile-diagnostics:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    steps:
+      - name: Checkout experimental Linux 5.10 source
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Android arm64 compilation tools
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            make build-essential bc bison flex libssl-dev libelf-dev python3 \
+            clang-14 lld-14 llvm-14 \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            device-tree-compiler
+
+      - name: Configure A12s 5.10 baseline plus experimental A21s overlay and panels
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          mkdir -p report
+          make -C kernel O="$GITHUB_WORKSPACE/out" exynos850-a12snsxx_defconfig > report/configure.log 2>&1
+          for opt in A21S_EXPERIMENTAL_DTBO \
+                     EXYNOS_DECON_LCD_TD4150_A21S \
+                     EXYNOS_DECON_LCD_HX83104_A21S \
+                     EXYNOS_DECON_LCD_NT36575_A21S; do
+            kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -e "$opt"
+          done
+          make -C kernel O="$GITHUB_WORKSPACE/out" olddefconfig >> report/configure.log 2>&1
+          cp "$GITHUB_WORKSPACE/out/.config" report/effective.config
+          for opt in A21S_EXPERIMENTAL_DTBO \
+                     EXYNOS_DECON_LCD_TD4150_A21S \
+                     EXYNOS_DECON_LCD_HX83104_A21S \
+                     EXYNOS_DECON_LCD_NT36575_A21S; do
+            grep -q "^CONFIG_${opt}=y$" report/effective.config || {
+              echo "NOT ENABLED: ${opt}" | tee report/ERROR.txt
+              exit 1
+            }
+          done
+          echo 'All experimental options enabled in temporary build config.' | tee report/config-status.txt
+
+      - name: Compile five A21s DTBOs and 5.10 base DTB (diagnostics only)
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          timeout 25m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" dtbs > report/dtbs.log 2>&1
+          status=$?
+          echo "$status" > report/dtbs-exit-code.txt
+          find "$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/samsung/a21s" \
+            -name '*.dtbo' -printf '%f %s bytes\n' \
+            2>/dev/null | sort > report/a21s-dtbo-built.txt || true
+          tail -n 100 report/dtbs.log
+          echo "dtbs exit: $status"
+          exit "$status"
+
+      - name: Attempt full Linux 5.10 Image build (NOT boot validated)
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          timeout 70m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" Image > report/image-build.log 2>&1
+          status=$?
+          echo "$status" > report/image-exit-code.txt
+          if [ -f "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" ]; then
+            wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
+            sha256sum "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-sha256.txt
+          fi
+          tail -n 130 report/image-build.log
+          echo "image build exit: $status"
+          exit "$status"
+
+      - name: Upload build logs ONLY (no boot.img / binaries)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: A21S-510-DTBO-IMAGE-COMPILE-LOGS-NOT-FLASHABLE
+          path: report/
+          if-no-files-found: warn
+          retention-days: 30
