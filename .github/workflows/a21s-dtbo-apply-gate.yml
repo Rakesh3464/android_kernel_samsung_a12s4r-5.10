@@ -1,0 +1,84 @@
+name: A21s 5.10 DTBO base-DTB application gate (NO FLASH)
+
+on:
+  push:
+    branches: [a21s-susfs-port]
+    paths: ['.github/workflows/a21s-dtbo-apply-gate.yml', 'arch/arm64/boot/dts/samsung/a21s/**', 'arch/arm64/boot/dts/Makefile']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  a21s-overlay-application:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout experimental kernel branch
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Linux dtbs compiler and FDT tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            make build-essential bc bison flex libssl-dev libelf-dev python3 \
+            clang-14 lld-14 llvm-14 gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi device-tree-compiler
+      - name: Compile 5.10 base DTB and five A21s DTBOs
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          mkdir -p report
+          make -C kernel O="$GITHUB_WORKSPACE/out" exynos850-a12snsxx_defconfig > report/configure.log 2>&1
+          kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -e A21S_EXPERIMENTAL_DTBO
+          make -C kernel O="$GITHUB_WORKSPACE/out" olddefconfig >> report/configure.log 2>&1
+          grep -q '^CONFIG_A21S_EXPERIMENTAL_DTBO=y$' "$GITHUB_WORKSPACE/out/.config"
+          timeout 30m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" dtbs > report/dtbs.log 2>&1
+          test -s "$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/exynos/s5e3830.dtb"
+      - name: Apply A21s overlays to Linux 5.10 base DTB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p report applied
+          base="$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/exynos/s5e3830.dtb"
+          echo 'DIAGNOSTIC ONLY: No flashable binaries or hardware boot test.' > report/NOT_FLASHABLE.txt
+          fdtget -t s "$base" / compatible > report/510-base-compatible.txt
+          status=0
+          for rev in r00 r01 r02 r03 r06; do
+            overlay="$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_${rev}.dtbo"
+            if [ ! -s "$overlay" ]; then
+              echo "$rev: BLOCKED, compiled DTBO missing" | tee "report/${rev}.txt"
+              status=1
+              continue
+            fi
+            if fdtoverlay -i "$base" -o "applied/${rev}.dtb" "$overlay" > "report/${rev}-fdtoverlay.log" 2>&1; then
+              echo "$rev: FDTO APPLY PASS; board operation NOT validated" | tee "report/${rev}.txt"
+              fdtget -t s "applied/${rev}.dtb" / compatible >> "report/${rev}.txt" 2>&1 || true
+            else
+              echo "$rev: BLOCKED, cannot apply overlay to Linux 5.10 base" | tee "report/${rev}.txt"
+              cat "report/${rev}-fdtoverlay.log"
+              status=1
+            fi
+          done
+          {
+            echo '# A21s SM-A217F / Linux 5.10 overlay application diagnostic'
+            echo 'Overlay application is NOT actual-device boot verification.'
+            for rev in r00 r01 r02 r03 r06; do cat "report/${rev}.txt"; done
+          } > report/SUMMARY.md
+          cat report/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Upload reports ONLY, not images or DTBs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM-A217F-5.10-FDT-APPLY-REPORT-NOT-FLASHABLE
+          path: report/
+          retention-days: 30
+          if-no-files-found: warn
