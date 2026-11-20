@@ -1,0 +1,28 @@
+# Experimental Samsung A21s board/panel config fragment — NOT BOOT TESTED.
+# Proven hardware input: /sys/class/lcd/panel/lcd_type = BOE_8A6220
+# Matching imported 4.19 panel source:
+# drivers/video/fbdev/exynos/panel/td4150/td4150_a21s_panel.h
+#   .id = 0x8A6220, .model = "BOE_6_55_inch"
+# Device source contains Synaptics TCM SPI; actual user logs also show synaptics_tcm_spi.
+# Apply only to a disposable CONFIG for validation, not to the A12s default defconfig.
+
+CONFIG_A21S_EXPERIMENTAL_DTBO=y
+CONFIG_EXYNOS_DECON_LCD_TD4150_A21S=y
+# CONFIG_EXYNOS_DECON_LCD_HX83104_A21S is not set
+# CONFIG_EXYNOS_DECON_LCD_NT36575_A21S is not set
+
+CONFIG_TOUCHSCREEN_SYNAPTICS_TCM=y
+CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_SPI=y
+CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_CORE=y
+# A12s panel selectors are disabled for this specific A21s experimental variant.
+# CONFIG_EXYNOS_DECON_LCD_TD4150_BOE_A12S is not set
+# CONFIG_EXYNOS_DECON_LCD_NT36525B_CTC_A12S is not set
+# CONFIG_EXYNOS_DECON_LCD_ILI9882Q_BOE_A12S is not set
+# CONFIG_EXYNOS_DECON_LCD_NT36525B_SHARP_A12S is not set
+# CONFIG_EXYNOS_DECON_LCD_NT36525B_DTC_A12S is not set
+# CONFIG_EXYNOS_DECON_LCD_TD4375_BOE_A12S is not set
+# CONFIG_EXYNOS_DECON_LCD_ILI7807S_A12S is not set
+# CONFIG_EXYNOS_DECON_LCD_TD4160_BOE_A12S is not set
+
+# SUSFS is NOT integrated or enabled by this file.
+# Config and compilation success are not proof of actual A21s boot functionality.
