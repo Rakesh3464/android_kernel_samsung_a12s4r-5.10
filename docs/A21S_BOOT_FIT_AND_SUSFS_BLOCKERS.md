@@ -40,7 +40,8 @@ packed_size = 2048 (header page)
 | SM-A217F boot partition maximum | **37,748,736** |
 | Estimated overflow (NOT FLASHABLE) | **1,013,776** |
 | Conditional maximum kernel budget with old ramdisk/DTB | **36,141,040** |
-| Minimum kernel reduction needed at current alignment | **1,012,240** |
+| Actual maximum kernel size after page alignment | **36,139,008** |
+| Minimum kernel reduction needed at current alignment | **1,014,272** |
 
 Reproduction check: the same calculation using the **original** kernel size reproduces the exact input boot image length **35,678,224** bytes.
 
