@@ -20,6 +20,20 @@
 
 **ಈ build ನ actual `Image` ಸೃಷ್ಟಿಯಾಗಿಲ್ಲ; ಅಂತಿಮ boot.img ಗಾತ್ರ ತಿಳಿದಿಲ್ಲ.**
 
+## KernelSU source ಆಯ್ಕೆ — ನಿಜವಾದ API ಹೊಂದಾಣಿಕೆ ಪರಿಶೀಲನೆ
+
+[GitHub Actions #44739798930](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44739798930) ನಲ್ಲಿ pinned upstream source ಅನ್ನು `undefined symbol` ಪಟ್ಟಿಯ **20 ಹೆಸರುಗಳಿಗೆ** ಹುಡುಕಲಾಗಿದೆ:
+
+| Source | 20ರಲ್ಲಿ source occurrences ಪತ್ತೆಯಾದ ಹೆಸರುಗಳು |
+|---|---:|
+| KernelSU-Next `aa235b99574b` | 10 |
+| tiann/KernelSU `ff70c90d6de4` | 8 |
+| **LyraVoid/FinaSU `f96445f966a2`** | **20** |
+
+`FinaSU` ಅತ್ಯಂತ ನಂಬಬಹುದಾದ *source candidate*. ಆದರೆ search ಫಲಿತಾಂಶದಿಂದ function definitions ಸರಿಯಾಗಿವೆ, signature ಹೊಂದಿದೆ, ಅಥವಾ compile/link success ಸಿಗುತ್ತದೆ ಎಂದು ಹೇಳಲಾಗುವುದಿಲ್ಲ.
+
+[**FinaSU + SUSFS + BOE Linux 5.10 isolated full-build trial #44740301678**](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44740301678) ಪ್ರಾರಂಭಿಸಲಾಗಿದೆ. ಈ workflow actual kernel source checkout ನಲ್ಲಿ (GitHub runner ಒಳಗೆ ಮಾತ್ರ) `kernel/setup.sh --dir` ಮೂಲಕ driver integration, `CONFIG_KSU_HOOK_SUSFS_INLINE=y`, `CONFIG_KALLSYMS_ALL=y`, `CONFIG_KSU_SUSFS=y`, BOE TD4150 options ಮತ್ತು `-Oz` Image build ಪರೀಕ್ಷಿಸುತ್ತದೆ. No flashable binaries exported. ಫಲಿತಾಂಶ ಬರುವವರೆಗೆ trial ಯಶಸ್ವಿ ಎಂದು ಘೋಷಿಸಬಾರದು.
+
 ## 2. A21s 4.19 overlay → Linux 5.10 base DTB ಇನ್ನೂ ವಿಫಲ
 
 - [Initial overlay test #44731307145](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44731307145): ಐದು revisions ಗೂ `FDT_ERR_NOTFOUND`.
