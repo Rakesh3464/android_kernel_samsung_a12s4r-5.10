@@ -47,6 +47,15 @@ Reproduction check: the same calculation using the **original** kernel size repr
 
 **This is a packing-size blocker even before hardware compatibility, modem, DTBO, vendor module ABI and SUSFS issues.** Do not overwrite/extend the physical boot partition or strip required ramdisk/DTB/AVB metadata to force a fit.
 
+## Latest BOE 8A6220 / TD4150-only experiment (20 November 2026)
+
+- [GitHub Actions run #44685562376](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685562376) **successfully compiled** Linux 5.10 `Image` using an experimental BOE TD4150 A21s fragment. The build uses the A12s-derived defconfig and does not establish an actual A21s boot.
+- Measured `Image` size: **36,870,656 bytes**, which is **282,624 bytes smaller** than the previous full experimental build.
+- Assuming original ramdisk and DTB sizes, Android boot v2 estimated size: **38,479,888 bytes**.
+- Versus the recorded SM-A217F boot partition (**37,748,736 bytes**): **731,152 bytes over capacity**.
+- With the same page-2048 packing assumptions, conditional kernel budget **36,139,008 bytes**: at least **731,648 bytes** further reduction needed, *before* addressing SUSFS and actual board/vendor compatibility.
+- **Not flashable.** The BOE build did not include a validated, fully integrated SUSFS+KernelSU implementation and was not booted on a phone.
+
 ## SUSFS patch context: adapted dry-run PASS, full integration still BLOCKED
 
 - [GitHub Actions SUSFS compatibility run #44685770287](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685770287), experimental development revision `20b2b84389c5027b62ec67260c6cf375a121913a`.
