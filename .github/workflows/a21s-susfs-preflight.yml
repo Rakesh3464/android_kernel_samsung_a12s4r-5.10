@@ -74,6 +74,24 @@ jobs:
           else
             echo "BLOCKED: SUSFS patch does not cleanly apply to current vendor kernel source" | tee report/result.txt
           fi
+          # Never change kernel source: generate a *copy* of the patch with
+          # strictly checked vendor include context and do another dry-run.
+          if python3 kernel/a21s_porting/adapt_susfs_patch.py --patch "$chosen" --kernel kernel --output report/susfs-samsung-context.patch > report/adaptation.log 2>&1; then
+            set +e
+            (cd kernel && timeout 180 patch --dry-run --batch --forward -p1 < ../report/susfs-samsung-context.patch) > report/adapted-patch-dryrun.log 2>&1
+            adapted_status=$?
+            set -e
+            echo "$adapted_status" > report/adapted-dryrun-exit-code.txt
+            if [ "$adapted_status" -eq 0 ]; then
+              echo 'ADAPTED PATCH DRY-RUN PASS: STILL NOT INTEGRATED OR BOOT VALIDATED' | tee report/adapted-result.txt
+            else
+              echo 'BLOCKED: even adjusted vendor-context SUSFS patch does not apply cleanly' | tee report/adapted-result.txt
+            fi
+          else
+            echo 'BLOCKED: upstream patch context changed; manual rebase required' | tee report/adapted-result.txt
+            cat report/adaptation.log
+          fi
+          cat report/adapted-result.txt >> "$GITHUB_STEP_SUMMARY"
           tail -n 80 report/susfs-patch-dryrun.log | tee report/patch-log-tail.txt || true
           cat report/result.txt
 
