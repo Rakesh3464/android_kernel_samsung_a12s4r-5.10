@@ -12,3 +12,10 @@ always    := $(DTB_LIST)
 dtbs: $(addprefix $(obj)/, $(DTB_LIST))
 
 clean-files := *.dtb*
+# Experimental A21s overlays: NOT included in A12s baseline unless explicitly enabled.
+dtbo-$(CONFIG_A21S_EXPERIMENTAL_DTBO) += \
+  samsung/a21s/a21s_eur_open_w00_r00.dtbo \
+  samsung/a21s/a21s_eur_open_w00_r01.dtbo \
+  samsung/a21s/a21s_eur_open_w00_r02.dtbo \
+  samsung/a21s/a21s_eur_open_w00_r03.dtbo \
+  samsung/a21s/a21s_eur_open_w00_r06.dtbo
