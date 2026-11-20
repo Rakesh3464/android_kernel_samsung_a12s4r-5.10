@@ -24,7 +24,7 @@
 
 ## ಏನು ಇನ್ನೂ ಬಾಕಿ?
 
-- **SUSFS ಇನ್ನೂ integrate ಆಗಿಲ್ಲ.** Original upstream patch dry-run ನಲ್ಲಿ **ಮೂರು** failed hunks ಇವೆ: `fs/exec.c` (Samsung `task_integrity.h`), `fs/namespace.c` (`fslog.h`) ಮತ್ತು `fs/proc/base.c` (`task_integrity.h`/`proca.h`). ಈ ಮೂರು include contextಗಳಿಗೆ `a21s_porting/adapt_susfs_patch.py` ಸಿದ್ಧವಾಗಿದೆ. Patch applied ಆಗಿದೆ ಎಂದಲ್ಲ; [SUSFS diagnostics](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685770287). `KernelSU` source ಸಾಮಾನ್ಯ ಸ್ಥಳಗಳಲ್ಲಿ ಕಾಣಿಸಲಿಲ್ಲ.
+- **SUSFS ಇನ್ನೂ integrate ಆಗಿಲ್ಲ.** Original upstream patch dry-run ನಲ್ಲಿ **ಮೂರು** failed hunks ಇವೆ: `fs/exec.c` (Samsung `task_integrity.h`), `fs/namespace.c` (`fslog.h`) ಮತ್ತು `fs/proc/base.c` (`task_integrity.h`/`proca.h`). ಈ ಮೂರು include contextಗಳಿಗೆ `a21s_porting/adapt_susfs_patch.py` ಸಿದ್ಧವಾಗಿದೆ. **ಹೊಂದಿಸಿದ patch dry-run exit 0** ([SUSFS diagnostics](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685770287)); ಆದರೆ KernelSU/SUSFS source integration ಮತ್ತು compile ಇನ್ನೂ ಬಾಕಿ. `KernelSU` source ಸಾಮಾನ್ಯ ಸ್ಥಳಗಳಲ್ಲಿ ಕಾಣಿಸಲಿಲ್ಲ.
 - Linux 5.10 `Image` ಈಗಾಗಲೇ GitHub Actions run [44680936353](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44680936353) ನಲ್ಲಿ **compile ಯಶಸ್ವಿಯಾಗಿದೆ**, ಆದರೆ ಅದು A12s ಆಧಾರಿತ experimental configuration; **A21s boot-test / ABI verification ಅಥವಾ partition-fit approval ಅಲ್ಲ**.
 - A21s ನ camera, sensors, charging/PMIC, modem, storage, audio ಹಾಗೂ device-specific DTBO bindings ಪರಿಶೀಲನೆ.
 - User ROM / One UI 9 vendor ABI, boot header v2, ramdisk, DTB ಮತ್ತು bootloader ಹೊಂದಾಣಿಕೆ.
