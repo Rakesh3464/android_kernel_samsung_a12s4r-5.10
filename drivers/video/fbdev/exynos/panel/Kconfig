@@ -160,3 +160,21 @@ config EXYNOS_DECON_LCD_TD4160_BOE_A12S
 config EXYNOS_DECON_LCD_A12S_BLIC_DUAL
 	depends on EXYNOS_DECON_LCD
 	tristate "A12S BLIC DUAL"
+
+# Experimental Samsung Galaxy A21s panels imported from Linux 4.19 (atlas).
+# These options are disabled by default until compiled against Linux 5.10 and
+# matched to the exact physical panel and the A21s board Device Tree.
+config EXYNOS_DECON_LCD_TD4150_A21S
+	tristate "Experimental A21s TD4150 LCD panel"
+	depends on EXYNOS_DECON_LCD
+	default n
+
+config EXYNOS_DECON_LCD_HX83104_A21S
+	tristate "Experimental A21s HX83104 LCD panel"
+	depends on EXYNOS_DECON_LCD
+	default n
+
+config EXYNOS_DECON_LCD_NT36575_A21S
+	tristate "Experimental A21s NT36575 LCD panel"
+	depends on EXYNOS_DECON_LCD
+	default n
