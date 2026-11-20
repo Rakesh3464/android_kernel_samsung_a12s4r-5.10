@@ -54,6 +54,20 @@ jobs:
           bash -n kernel/a21s_porting/susfs_compile_probe.sh
           bash kernel/a21s_porting/susfs_compile_probe.sh kernel susfs report
 
+      - name: Ensure SUSFS is linked, keep mremap BUILD_BUG under -Oz
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This changes ONLY the disposable GitHub Actions checkout.
+          # A standalone fs/susfs.o build is NOT proof of inclusion in Image.
+          if ! grep -Eq 'obj-\$\(CONFIG_KSU_SUSFS\)[[:space:]]*\+=[[:space:]]*susfs\.o' kernel/fs/Makefile; then
+            printf '\n# EXPERIMENTAL ONLY - forced SUSFS link test\nobj-$(CONFIG_KSU_SUSFS) += susfs.o\n' >> kernel/fs/Makefile
+          fi
+          grep -E 'obj-\$\(CONFIG_KSU_SUSFS\).*susfs\.o' kernel/fs/Makefile | tee report/susfs-link-target.txt
+          # Proven -Oz compilation exception; preserve the BUILD_BUG assertion.
+          printf '\n# EXPERIMENTAL ONLY - mremap BUILD_BUG optimization exception\nCFLAGS_mremap.o += -O2\n' >> kernel/mm/Makefile
+          grep -F 'CFLAGS_mremap.o += -O2' kernel/mm/Makefile | tee report/mremap-exception.txt
+
       - name: Enable A21s BOE TD4150, Synaptics and experimental DTBO
         shell: bash
         run: |
@@ -87,11 +101,53 @@ jobs:
           set -uo pipefail
           export PATH="/usr/lib/llvm-14/bin:$PATH"
           export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
-          timeout 70m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" Image > report/full-image-build.log 2>&1
+          timeout 70m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" KCFLAGS=-Oz Image > report/full-image-build.log 2>&1
           result=$?
           echo "$result" > report/full-image-exit-code.txt
           tail -n 115 report/full-image-build.log > report/full-image-build-tail.txt
           cat report/full-image-build-tail.txt
+          if [ "$result" -eq 0 ]; then
+            ar="$GITHUB_WORKSPACE/out/fs/built-in.a"
+            if [ ! -s "$ar" ]; then
+              echo 'BLOCKED: fs/built-in.a missing after Image link' | tee report/ERROR.txt
+              exit 1
+            fi
+            /usr/lib/llvm-14/bin/llvm-ar t "$ar" > report/fs-archive-members.txt
+            if ! grep -Eq '(^|/)susfs\.o            wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
+            sha256sum "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-sha256.txt
+          fi
+          exit "$result"
+
+      - name: Check conditional SM-A217F partition fit
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p report/boot-fit
+          if [ -s report/image-size.txt ]; then
+            python3 kernel/a21s_porting/boot_fit.py --size-report report/image-size.txt --out-dir report/boot-fit
+            cat report/boot-fit/A21S_BOOT_FIT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'NO IMAGE or link failure: NOT FLASHABLE' > report/boot-fit/BLOCKED.txt
+          fi
+
+      - name: Save compiler logs and size only, never binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM-A217F-SUSFS-BOE-FULL-LINK-DIAGNOSTIC-NOT-FLASHABLE
+          path: |
+            report/*.txt
+            report/*.log
+            report/*.config
+            report/boot-fit/
+          retention-days: 30
+          if-no-files-found: warn
+ report/fs-archive-members.txt; then
+              echo 'BLOCKED: fs/susfs.o NOT linked into fs/built-in.a (false-positive Image)' | tee report/ERROR.txt
+              exit 1
+            fi
+            echo 'SUSFS object present in built-in archive (NOT proof of KernelSU functionality)' | tee report/susfs-link-check.txt
+          fi
           if [ "$result" -eq 0 ] && [ -s "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" ]; then
             wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
             sha256sum "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-sha256.txt
