@@ -24,15 +24,15 @@
 
 ## ಏನು ಇನ್ನೂ ಬಾಕಿ?
 
-- **SUSFS patch ಹೊಂದಾಣಿಕೆಯಾಗಿಲ್ಲ.** 5.10 patch dry-run ನಲ್ಲಿ ಕನಿಷ್ಠ ಎರಡು failed hunks ಇವೆ: `fs/namespace.c` ಮತ್ತು `fs/proc/base.c`. `KernelSU` ಮೂಲ source directory ನಿರೀಕ್ಷಿತ ಸ್ಥಳದಲ್ಲಿ ಇಲ್ಲ. Dry-run ಪರೀಕ್ಷೆಯ ಫಲಿತಾಂಶವು GitHub Actions [44681104818](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44681104818) ನಲ್ಲಿ ಇದೆ. SUSFS ಇನ್ನೂ integrate ಆಗಿಲ್ಲ.
+- **SUSFS ಇನ್ನೂ integrate ಆಗಿಲ್ಲ.** Original upstream patch dry-run ನಲ್ಲಿ **ಮೂರು** failed hunks ಇವೆ: `fs/exec.c` (Samsung `task_integrity.h`), `fs/namespace.c` (`fslog.h`) ಮತ್ತು `fs/proc/base.c` (`task_integrity.h`/`proca.h`). ಈ ಮೂರು include contextಗಳಿಗೆ `a21s_porting/adapt_susfs_patch.py` ಸಿದ್ಧವಾಗಿದೆ. Patch applied ಆಗಿದೆ ಎಂದಲ್ಲ; [SUSFS diagnostics](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685770287). `KernelSU` source ಸಾಮಾನ್ಯ ಸ್ಥಳಗಳಲ್ಲಿ ಕಾಣಿಸಲಿಲ್ಲ.
 - Linux 5.10 `Image` ಈಗಾಗಲೇ GitHub Actions run [44680936353](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44680936353) ನಲ್ಲಿ **compile ಯಶಸ್ವಿಯಾಗಿದೆ**, ಆದರೆ ಅದು A12s ಆಧಾರಿತ experimental configuration; **A21s boot-test / ABI verification ಅಥವಾ partition-fit approval ಅಲ್ಲ**.
 - A21s ನ camera, sensors, charging/PMIC, modem, storage, audio ಹಾಗೂ device-specific DTBO bindings ಪರಿಶೀಲನೆ.
 - User ROM / One UI 9 vendor ABI, boot header v2, ramdisk, DTB ಮತ್ತು bootloader ಹೊಂದಾಣಿಕೆ.
-- A21s boot partition ಗಾತ್ರ 37,748,736 bytes. ಹಿಂದಿನ A12s-5.10 + A21s hybrid ಕನಿಷ್ಠ 39,780,368 bytes ಎಂದು preflight ವರದಿ ತೋರಿಸಿತ್ತು. 36 MiB ಮಿತಿಗೆ ಹೊಂದುವ ಹೊಸ Image ಇನ್ನೂ ಸಿದ್ಧವಾಗಿಲ್ಲ.
+- A21s boot partition ಗಾತ್ರ **37,748,736 bytes**. Compile ಆದ actual Linux 5.10 `Image` **37,153,280 bytes**. ಹಳೆಯ ramdisk/DTB ಗಾತ್ರಗಳನ್ನೇ ಬಳಸಿದರೆ packing ಅಂದಾಜು **38,762,512 bytes**, ಅಂದರೆ **1,013,776 bytes ಮಿತಿಮೀರಿಕೆ**. [ಗಾತ್ರದ ಸಂಪೂರ್ಣ ವರದಿ](../docs/A21S_BOOT_FIT_AND_SUSFS_BLOCKERS.md) ಇದೆ. 36 MiB ಮಿತಿಗೆ ಹೊಂದುವ, actual-device boot validated Image ಇನ್ನೂ ಸಿದ್ಧವಾಗಿಲ್ಲ.
 - ಮೂಲ firmware backup ಮತ್ತು ವಿಶ್ವಾಸಾರ್ಹ recovery ವಿಧಾನ ಹೊಂದಿಸಿ, **ನಿಜವಾದ A21s device ಮೇಲೆ** ಯಶಸ್ವಿ boot ಪರೀಕ್ಷೆ.
 
 ## ZIP ಕುರಿತು
 
 ಈ ZIP ನಲ್ಲಿ source, configuration fragments ಮತ್ತು ಪರೀಕ್ಷೆಗಳಿಗೆ ಬೇಕಾದ scripts/ವರದಿಗಳು ಮಾತ್ರ ಇವೆ. **Kernel Image, SUSFS-ready boot.img, ಅಥವಾ flash-ready ZIP ಇಲ್ಲ.**
 
-**ಮುಂದಿನ ಸುರಕ್ಷಿತ ಹಂತ:** Full kernel build log ಮತ್ತು SUSFS failed hunks ಪರಿಹರಿಸಿ, ನಂತರ A21s ನ hardware ಮೇಲೆ ನಿಯಂತ್ರಿತ boot validation ನಡೆಸುವುದು.
+**ಮುಂದಿನ ಸುರಕ್ಷಿತ ಹಂತ:** Three Samsung-specific SUSFS patch contextಗಳ dry-run ಫಲಿತಾಂಶ ಪರಿಶೀಲಿಸಿ, BOE 8A6220/TD4150 ಮಾತ್ರ ಆಯ್ಕೆ ಮಾಡಿದ [kernel size probe](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685562376) ನ ಗಾತ್ರ ಗಮನಿಸಿ, ನಂತರ ಉಳಿದ drivers/vendor ABI ಹಾಗೂ actual-device boot validation ನಡೆಸುವುದು.
