@@ -1,0 +1,117 @@
+name: A21s BOE TD4150 Linux 5.10 size experiment (NOT FLASHABLE)
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - '.github/workflows/a21s-boe-size-experiment.yml'
+      - 'a21s_porting/configs/a21s-boe-8a6220-experimental.fragment'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  boe-td4150-size-probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    steps:
+      - name: Checkout isolated experimental source
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install ARM64 kernel compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            make build-essential bc bison flex libssl-dev libelf-dev python3 \
+            clang-14 lld-14 llvm-14 gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi device-tree-compiler
+
+      - name: Configure BOE 8A6220 TD4150 experimental profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          mkdir -p report
+          make -C kernel O="$GITHUB_WORKSPACE/out" exynos850-a12snsxx_defconfig > report/configure.log 2>&1
+          fragment="kernel/a21s_porting/configs/a21s-boe-8a6220-experimental.fragment"
+          while IFS= read -r line; do
+            case "$line" in
+              CONFIG_*=y)
+                symbol="${line%%=*}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -e "${symbol#CONFIG_}"
+                ;;
+              '# CONFIG_'*' is not set')
+                symbol="${line#\# }"
+                symbol="${symbol% is not set}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -d "${symbol#CONFIG_}"
+                ;;
+              *) ;;
+            esac
+          done < "$fragment"
+          make -C kernel O="$GITHUB_WORKSPACE/out" olddefconfig >> report/configure.log 2>&1
+          cp "$GITHUB_WORKSPACE/out/.config" report/effective.config
+          grep -q '^CONFIG_A21S_EXPERIMENTAL_DTBO=y$' report/effective.config
+          grep -q '^CONFIG_EXYNOS_DECON_LCD_TD4150_A21S=y$' report/effective.config
+          grep -q '^CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_SPI=y$' report/effective.config
+          grep 'CONFIG_EXYNOS_DECON_LCD_.*_A12S' report/effective.config > report/a12s-panel-config.txt || true
+          grep 'CONFIG_EXYNOS_DECON_LCD_.*_A21S' report/effective.config > report/a21s-panel-config.txt || true
+          if grep '^CONFIG_EXYNOS_DECON_LCD_.*_A12S=y$' report/effective.config; then
+            echo "WARNING: Some A12s-only panels stayed enabled due to Kconfig dependencies" | tee report/panel-selection-warning.txt
+          fi
+
+      - name: Compile BOE-only arm64 Image (experimental)
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          timeout 72m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" Image > report/image-build.log 2>&1
+          result=$?
+          echo "$result" > report/image-exit-code.txt
+          tail -n 95 report/image-build.log
+          if [ -f "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" ]; then
+            wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
+          fi
+          exit "$result"
+
+      - name: Compile 5 A21s DTBOs and base DTB
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          timeout 25m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" dtbs > report/dtbs.log 2>&1
+          result=$?
+          echo "$result" > report/dtbs-exit-code.txt
+          tail -n 65 report/dtbs.log
+          exit "$result"
+
+      - name: Calculate Android boot v2 size without packaging
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p report/boot-fit
+          if [ -s report/image-size.txt ]; then
+            python3 kernel/a21s_porting/boot_fit.py --size-report report/image-size.txt --out-dir report/boot-fit
+            cat report/boot-fit/A21S_BOOT_FIT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "NO IMAGE: not measurable or flashable." | tee report/boot-fit/BLOCKED.txt
+          fi
+
+      - name: Upload compilation and size logs ONLY
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: A21S-BOE-TD4150-510-SIZE-PROBE-NOT-FLASHABLE
+          path: report/
+          retention-days: 30
+          if-no-files-found: warn
