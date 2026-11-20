@@ -11,6 +11,15 @@ config SOC_S5E3830
 	help
 	Support Samsung SOC S5E3830.
 
+config A21S_EXPERIMENTAL_DTBO
+	bool "Experimental A21s 5.10 DTBO compilation (NOT boot validated)"
+	depends on SOC_S5E3830
+	default n
+	help
+	  Compile A21s r00/r01/r02/r03/r06 DTBO candidates. These overlays
+	  were imported from the 4.19 atlas kernel. A standalone dtc pass
+	  does not verify compatibility with 5.10 or a real A21s handset.
+
 if SOC_SAMSUNG
 
 # There is no need to enable these drivers for ARMv8
