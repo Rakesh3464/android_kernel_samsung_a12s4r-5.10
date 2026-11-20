@@ -96,6 +96,23 @@ jobs:
           echo "image build exit: $status"
           exit "$status"
 
+      - name: Check boot v2 partition fit (size estimate, not flash approval)
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p report/boot-fit
+          if [ -s report/image-size.txt ]; then
+            python3 kernel/a21s_porting/boot_fit.py \
+              --size-report report/image-size.txt \
+              --out-dir report/boot-fit
+            cat report/boot-fit/A21S_BOOT_FIT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '%s\n' 'UNKNOWN: No compiled Image to size-check.' \
+              'No boot.img may be considered flashable.' \
+              > report/boot-fit/UNKNOWN.txt
+            cat report/boot-fit/UNKNOWN.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload build logs ONLY (no boot.img / binaries)
         if: always()
         uses: actions/upload-artifact@v4
