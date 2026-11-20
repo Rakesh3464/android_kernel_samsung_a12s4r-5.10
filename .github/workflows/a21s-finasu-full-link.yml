@@ -1,0 +1,139 @@
+name: A21s 5.10 FinaSU-SUSFS full-link experiment (NO FLASH)
+on:
+  push:
+    branches: [a21s-susfs-port]
+    paths: ['.github/workflows/a21s-finasu-full-link.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  experimental-link:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    steps:
+      - name: Checkout temporary A21s Linux 5.10 source
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install ARM64 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            make build-essential bc bison flex libssl-dev libelf-dev python3 \
+            clang-14 lld-14 llvm-14 gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi device-tree-compiler
+      - name: Fetch exact SUSFS and FinaSU sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p report
+          git clone --depth 1 --branch gki-android13-5.10 \
+            https://gitlab.com/simonpunk/susfs4ksu.git susfs > report/susfs-clone.log 2>&1
+          git clone --depth 1 --filter=blob:none --branch master \
+            https://github.com/LyraVoid/FinaSU.git finasu > report/finasu-clone.log 2>&1
+          susfs_sha="$(git -C susfs rev-parse HEAD)"
+          finasu_sha="$(git -C finasu rev-parse HEAD)"
+          echo "$susfs_sha" > report/susfs-sha.txt
+          echo "$finasu_sha" > report/finasu-sha.txt
+          test "$susfs_sha" = "d480b312d650601888550529695706f4a112e29e"
+          test "$finasu_sha" = "f96445f966a2c3f4c1257938acf0449757be8a04"
+      - name: Adapt and apply SUSFS vendor patch only inside runner checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="susfs/kernel_patches/50_add_susfs_in_gki-android13-5.10.patch"
+          python3 kernel/a21s_porting/adapt_susfs_patch.py \
+            --patch "$src" --kernel kernel --output report/samsung-adapted.patch
+          (cd kernel && patch --batch --forward --fuzz=2 -p1 < ../report/samsung-adapted.patch) \
+            > report/patch-apply.log 2>&1
+          if grep -q 'with fuzz' report/patch-apply.log; then
+            grep 'with fuzz' report/patch-apply.log > report/FUZZ_REQUIRES_MANUAL_REVIEW.txt
+          fi
+          cp susfs/kernel_patches/fs/susfs.c kernel/fs/susfs.c
+          for file in susfs/kernel_patches/include/linux/susfs*.h; do
+            cp "$file" "kernel/include/linux/$(basename "$file")"
+          done
+          printf '\n# Disposable FinaSU SUSFS link experiment\nobj-$(CONFIG_KSU_SUSFS) += susfs.o\n' >> kernel/fs/Makefile
+      - name: Connect pinned FinaSU built-in driver in disposable checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd kernel && sh ../finasu/kernel/setup.sh --dir "$GITHUB_WORKSPACE/finasu") \
+            > report/finasu-setup.log 2>&1
+          test -L kernel/drivers/kernelsu
+          grep -Fq 'obj-$(CONFIG_KSU) += kernelsu/' kernel/drivers/Makefile
+          grep -Fq 'source "drivers/kernelsu/Kconfig"' kernel/drivers/Kconfig
+          echo 'KernelSU source linked in disposable checkout; no device flashed' > report/SETUP_ONLY.txt
+      - name: Configure FinaSU SUSFS inline hooks plus BOE TD4150
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          mkdir -p report
+          make -C kernel O="$GITHUB_WORKSPACE/out" exynos850-a12snsxx_defconfig > report/config.log 2>&1
+          frag="kernel/a21s_porting/configs/a21s-boe-8a6220-experimental.fragment"
+          while IFS= read -r line; do
+            case "$line" in
+              CONFIG_*=y)
+                option="${line%%=*}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -e "${option#CONFIG_}" ;;
+              '# CONFIG_'*' is not set')
+                option="${line#\# }"
+                option="${option% is not set}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -d "${option#CONFIG_}" ;;
+            esac
+          done < "$frag"
+          kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" \
+            -e KSU -e KSU_SUSFS -e KSU_SUSFS_ENABLE_LOG \
+            -e KSU_HOOK_SUSFS_INLINE -e KALLSYMS_ALL -e A21S_EXPERIMENTAL_DTBO
+          make -C kernel O="$GITHUB_WORKSPACE/out" olddefconfig >> report/config.log 2>&1
+          cp "$GITHUB_WORKSPACE/out/.config" report/effective.config
+          for symbol in KSU KSU_SUSFS KSU_SUSFS_ENABLE_LOG KSU_HOOK_SUSFS_INLINE KALLSYMS_ALL EXYNOS_DECON_LCD_TD4150_A21S TOUCHSCREEN_SYNAPTICS_TCM_SPI; do
+            grep -q "^CONFIG_$symbol=y$" report/effective.config || { echo "BLOCKED missing CONFIG_$symbol" | tee report/BLOCKED.txt; exit 1; }
+          done
+          sh finasu/kernel/tools/check_susfs_inline.sh kernel > report/inline-hooks.log 2>&1 || \
+            { echo 'BLOCKED: FinaSU inline hook sites mismatch vendor 5.10 source' | tee report/BLOCKED.txt; cat report/inline-hooks.log; exit 1; }
+          printf '\n# Preserve mm/mremap.c BUILD_BUG with local -O2\nCFLAGS_mremap.o += -O2\n' >> kernel/mm/Makefile
+      - name: Attempt real kernel Image build and link in temporary runner
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          timeout 73m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" KCFLAGS=-Oz Image > report/full-image.log 2>&1
+          status=$?
+          echo "$status" > report/link-exit-code.txt
+          tail -n 135 report/full-image.log | tee report/full-image-tail.txt
+          if [ "$status" -eq 0 ] && [ -s "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" ]; then
+            wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
+            sha256sum "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-sha256.txt
+          fi
+          exit "$status"
+      - name: Fail closed on boot partition size (NOT a boot validation)
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p report/fit
+          if [ -s report/image-size.txt ]; then
+            python3 kernel/a21s_porting/boot_fit.py \
+              --size-report report/image-size.txt --require-fit --out-dir report/fit
+          else
+            echo 'BLOCKED: final kernel Image did not link; no boot.img created' > report/fit/BLOCKED.txt
+          fi
+      - name: Upload logs only; never Image, DTB, boot.img or partition files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM-A217F-FINASU-SUSFS-FULL-LINK-EXPERIMENT-NOT-FLASHABLE
+          path: |
+            report/*.txt
+            report/*.log
+            report/*.config
+            report/fit/
+          if-no-files-found: warn
+          retention-days: 30
