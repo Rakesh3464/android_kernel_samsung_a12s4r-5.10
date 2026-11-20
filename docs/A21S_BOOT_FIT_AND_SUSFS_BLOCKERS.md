@@ -47,21 +47,22 @@ Reproduction check: the same calculation using the **original** kernel size repr
 
 **This is a packing-size blocker even before hardware compatibility, modem, DTBO, vendor module ABI and SUSFS issues.** Do not overwrite/extend the physical boot partition or strip required ramdisk/DTB/AVB metadata to force a fit.
 
-## SUSFS is separately blocked
+## SUSFS patch context: adapted dry-run PASS, full integration still BLOCKED
 
-- [SUSFS preflight #44681104818](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44681104818).
-- Upstream `gki-android13-5.10` patch checkout commit `d480b312d650601888550529695706f4a112e29e` was used by this dry run.
-- `fs/namespace.c`: first hunk failed at around line 30.
-- `fs/proc/base.c`: first hunk failed at around line 99.
-- `patch --dry-run` returned exit code **1**. The workflow itself showed green because its purpose was to **report compatibility**, not to require an applicable patch.
-- No in-tree KernelSU source directory was found at the two common locations. This does not prove all KernelSU hooks are absent.
-- **SUSFS is NOT installed by this workflow;** a clean patch plus full KernelSU integration and on-device verification would still be required.
+- [GitHub Actions SUSFS compatibility run #44685770287](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44685770287), experimental development revision `20b2b84389c5027b62ec67260c6cf375a121913a`.
+- Upstream `gki-android13-5.10` patch commit `d480b312d650601888550529695706f4a112e29e`.
+- Unadapted upstream patch **dry-run exit 1**: first hunks failed in **three** Samsung vendor files: `fs/exec.c`, `fs/namespace.c`, `fs/proc/base.c`.
+- Reasons: additional vendor `task_integrity.h`, `fslog.h`, and `task_integrity.h/proca.h` include lines respectively.
+- `a21s_porting/adapt_susfs_patch.py` generates a copy of the upstream patch with exact, guarded vendor context. **Adapted patch dry-run exit 0; all hunks applicable.**
+- GitHub Actions output contains `susfs-samsung-context.patch`, `adapted-dryrun-exit-code.txt` and full logs. This check **never applies or commits SUSFS into the Linux 5.10 source**.
+- No in-tree KernelSU source directory found at the two standard tested paths. This does not establish that all KernelSU hooks are absent, but KernelSU integration is NOT validated.
+- **Passing `patch --dry-run` is not working SUSFS**. The SUSFS source/headers, Kconfig, KernelSU compatibility, enabled compilation, partition size and actual A21s boot still need independent validation.
 
 ## Safe next engineering milestones
 
 1. Disable unused board drivers or select an A21s-specific config only after validating required panel, touch, camera, charger, modem, storage and Wi-Fi features; rebuild and re-measure.
 2. Capture the *new* actual DTB/DTBO and ramdisk sizes. Recheck Android boot image header v2, 2048-page layout, board cmdline and Samsung bootloader requirements.
-3. Rebase the two failed SUSFS hunks manually with explicit review and test the complete patch in a disposable checkout. Validate KernelSU/SUSFS Kconfig and symbols.
+3. Review the three-hunk Samsung-specific SUSFS adaptation, then apply the complete upstream source/headers + adapted patch + compatible KernelSU hooks in an isolated disposable build. Enable relevant Kconfig symbols, check compilation and link errors and test on hardware only after the size/ABI blockers are resolved.
 4. Confirm the candidate image fits **37,748,736 bytes**, bootloader accepts it, and the actual A21s device boots; maintain a stock restore method.
 
 **No image produced or approved for flashing.**
