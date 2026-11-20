@@ -20,6 +20,15 @@
 - In-tree KernelSU source `KernelSU` ಅಥವಾ `drivers/kernelsu` ಸಾಮಾನ್ಯ ಸ್ಥಳಗಳಲ್ಲಿ ಸಿಕ್ಕಿಲ್ಲ; `arch/arm64/configs/ksu.config` ಇರುವುದರಿಂದ ಮಾತ್ರ functional KernelSU ಇರುವುದಿಲ್ಲ.
 - **SUSFS + KernelSU ಪೂರ್ಣ compile/link/run ಇನ್ನೂ ಪೂರ್ತಿಯಾಗಿಲ್ಲ.**
 
+## 20 ನವೆಂಬರ್ — ಹೊಸ ಪರೀಕ್ಷಾ ಪ್ರಗತಿ
+
+- SUSFS `fs/susfs.o` ಗೆ `CONFIG_KSU_SUSFS_ENABLE_LOG` enable ಮಾಡಿ compiler ಪ್ರಯೋಗ ಪ್ರಾರಂಭಿಸಲಾಗಿದೆ. Root source/headers ಸಂಪರ್ಕ ಇನ್ನೂ ಸಂಪೂರ್ಣವಾಗಿ validated ಆಗಿಲ್ಲ.
+- GitHub Actions ನಲ್ಲಿ ಮೊದಲ [full Image link probe #44723633429](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44723633429) **fail** ಆಗಿದೆ — malformed shell configuration guard ಕಾರಣ compiler ಹಂತದ ಮುಂಚೆಯೇ ನಿಂತಿದೆ. **ಇದು linker error ಅಲ್ಲ**; full link ನಡೆದಿಲ್ಲ.
+- `a21s_porting/susfs_compile_probe.sh` ಯ ತಪ್ಪಾದ duplicated suffix ತೆಗೆದು, configuration guard ಸರಿಪಡಿಸಲಾಗಿದೆ. [Bash + Python lint #44724255078](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44724255078) **SUCCESS**.
+- [ಸರಿಪಡಿಸಿದ SUSFS object compile run #44724199462](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44724199462) ಪ್ರಾರಂಭವಾಗಿದೆ; ಫಲಿತಾಂಶ ಬಂದಿಲ್ಲದವರೆಗೆ integrated ಎಂದು ಹೇಳಲಾಗುವುದಿಲ್ಲ.
+- [BOE Clang -Oz one-file -O2 exception #44721849406](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44721849406) ಮೊದಲ -Oz ದೋಷ ತಿದ್ದುಪಡಿ compile ಪ್ರಯೋಗ; ಇನ್ನೂ ಖಚಿತ ಫಲಿತಾಂಶ ಬಂದಿಲ್ಲ.
+- ಮುಂದಿನ release gate ಬದಲಾವಣೆ ಇಲ್ಲ: **boot partition fit, KernelSU integration, full Image linker pass, DTB/DTBO ABI compatibility ಮತ್ತು actual SM-A217F boot test.**
+
 ## 3. ಸುರಕ್ಷಿತ release gate
 
 1. BOE/TD4150, Synaptics, storage, modem, audio, camera, charging, fingerprints ಮತ್ತು device DTBO bindings ಸಾಮರ್ಥ್ಯ ದೃಢಪಡಿಸಬೇಕು.
