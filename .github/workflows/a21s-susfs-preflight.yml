@@ -1,0 +1,84 @@
+name: SUSFS 5.10 patch compatibility check (NO PATCH APPLIED)
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - '.github/workflows/a21s-susfs-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-susfs:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout kernel without changing it
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Read-only SUSFS patch availability and dry-run check
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p report
+          echo 'CHECK ONLY - no SUSFS source installed or modified by this job' > report/READ_ME.txt
+          if [ ! -f kernel/Makefile ]; then
+            echo "BLOCKED: no Linux 5.10 source checkout" | tee report/result.txt
+            exit 0
+          fi
+          if [ -d kernel/KernelSU ] || [ -d kernel/drivers/kernelsu ]; then
+            echo "A KernelSU source directory was found" | tee report/ksu-source.txt
+          else
+            echo "WARNING: no in-tree KernelSU source directory at standard locations" | tee report/ksu-source.txt
+          fi
+          set +e
+          timeout 180 git clone --depth 1 --single-branch \
+            --branch gki-android13-5.10 \
+            https://gitlab.com/simonpunk/susfs4ksu.git susfs \
+            > report/susfs-clone.log 2>&1
+          clone_status=$?
+          set -e
+          echo "Clone status: $clone_status" >> report/susfs-clone.log
+          if [ "$clone_status" -ne 0 ]; then
+            echo "BLOCKED: SUSFS upstream not accessible at requested branch" | tee report/result.txt
+            exit 0
+          fi
+          find susfs/kernel_patches -maxdepth 2 -type f -name '*5.10*.patch' \
+            -print | sort > report/available-510-patches.txt
+          chosen="susfs/kernel_patches/50_add_susfs_in_gki-android13-5.10.patch"
+          if [ ! -f "$chosen" ]; then
+            echo "BLOCKED: expected android13-5.10 patch unavailable" | tee report/result.txt
+            exit 0
+          fi
+          git -C susfs rev-parse HEAD > report/susfs-upstream-sha.txt
+          git -C kernel rev-parse HEAD > report/kernel-source-sha.txt
+          printf '%s\n' "Running --dry-run patch only, applying no changes" > report/READ_ME.txt
+          set +e
+          (cd kernel && timeout 180 patch --dry-run --batch --forward -p1 < "../$chosen") \
+            > report/susfs-patch-dryrun.log 2>&1
+          patch_status=$?
+          set -e
+          printf '%s\n' "$patch_status" > report/dryrun-exit-code.txt
+          if [ "$patch_status" -eq 0 ]; then
+            echo "PATCH SYNTAX APPLICABLE: not yet SUSFS integrated, no KernelSU hook validation" | tee report/result.txt
+          else
+            echo "BLOCKED: SUSFS patch does not cleanly apply to current vendor kernel source" | tee report/result.txt
+          fi
+          tail -n 80 report/susfs-patch-dryrun.log > report/patch-log-tail.txt || true
+          cat report/result.txt
+
+      - name: Upload SUSFS compatibility report only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: A21s-SUSFS-510-PATCH-COMPATIBILITY-ONLY-NOT-FLASHABLE
+          path: report/
+          if-no-files-found: warn
+          retention-days: 30
