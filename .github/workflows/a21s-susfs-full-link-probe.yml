@@ -108,36 +108,7 @@ jobs:
             archive="$GITHUB_WORKSPACE/out/fs/built-in.a"
             test -s "$archive" || { echo 'BLOCKED: fs/built-in.a missing after build' | tee report/ERROR.txt; exit 1; }
             /usr/lib/llvm-14/bin/llvm-ar t "$archive" > report/fs-archive-members.txt
-            if ! grep -Eq '(^|/)susfs[.]o            wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
-            sha256sum "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-sha256.txt
-          fi
-          exit "$result"
-
-      - name: Check conditional SM-A217F partition fit
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p report/boot-fit
-          if [ -s report/image-size.txt ]; then
-            python3 kernel/a21s_porting/boot_fit.py --size-report report/image-size.txt --out-dir report/boot-fit
-            cat report/boot-fit/A21S_BOOT_FIT.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo 'NO IMAGE or link failure: NOT FLASHABLE' > report/boot-fit/BLOCKED.txt
-          fi
-
-      - name: Save compiler logs and size only, never binaries
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: SM-A217F-SUSFS-BOE-FULL-LINK-DIAGNOSTIC-NOT-FLASHABLE
-          path: |
-            report/*.txt
-            report/*.log
-            report/*.config
-            report/boot-fit/
-          retention-days: 30
-          if-no-files-found: warn
- report/fs-archive-members.txt; then
+            if ! grep -Eq '(^|/)susfs[.]o$' report/fs-archive-members.txt; then
               echo 'BLOCKED: SUSFS object NOT linked into fs/built-in.a' | tee report/ERROR.txt
               exit 1
             fi
