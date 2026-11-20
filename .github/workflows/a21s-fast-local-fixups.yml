@@ -1,0 +1,72 @@
+name: A21s fast DTBO local-fixup isolation (NO FLASH)
+on:
+  push:
+    branches: [a21s-susfs-port]
+    paths:
+      - '.github/workflows/a21s-fast-local-fixups.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout Device Tree sources and diagnostic only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: |
+            arch/arm64/boot/dts/exynos/s5e3830.dts
+            arch/arm64/boot/dts/samsung/a21s
+            a21s_porting/dtbo_local_fixup_audit.py
+      - name: Install FDT utilities only
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq device-tree-compiler
+      - name: Compile source DTBs (no kernel build)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p compiled report scratch
+          dtc -I dts -O dtb -o compiled/base.dtb arch/arm64/boot/dts/exynos/s5e3830.dts 2> report/base-dtc-warnings.txt
+          for rev in r00 r01 r02 r03 r06; do
+            dtc -I dts -O dtb -o "compiled/${rev}.dtbo" "arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_${rev}.dts" 2> "report/${rev}-dtc-warnings.txt"
+          done
+      - name: Find missing local fixups and try isolated metadata removals
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 a21s_porting/dtbo_local_fixup_audit.py \
+            --overlays compiled/r00.dtbo compiled/r01.dtbo compiled/r02.dtbo compiled/r03.dtbo compiled/r06.dtbo \
+            --out-dir report
+          for rev in r00 r01 r02 r03 r06; do
+            echo "revision ${rev}" > "report/${rev}-isolation.txt"
+            for mode in original no-symbols no-local-fixups no-symbols-or-local-fixups; do
+              cp "compiled/${rev}.dtbo" "scratch/${rev}-${mode}.dtbo"
+              case "$mode" in
+                no-symbols) fdtput -r "scratch/${rev}-${mode}.dtbo" /__symbols__ ;;
+                no-local-fixups) fdtput -r "scratch/${rev}-${mode}.dtbo" /__local_fixups__ ;;
+                no-symbols-or-local-fixups)
+                  fdtput -r "scratch/${rev}-${mode}.dtbo" /__symbols__
+                  fdtput -r "scratch/${rev}-${mode}.dtbo" /__local_fixups__ ;;
+              esac
+              if fdtoverlay -i compiled/base.dtb -o "scratch/out-${rev}-${mode}.dtb" "scratch/${rev}-${mode}.dtbo" > "report/${rev}-${mode}.log" 2>&1; then
+                echo "${mode}: APPLY YES in diagnostic copy ONLY (never flash)" >> "report/${rev}-isolation.txt"
+              else
+                echo "${mode}: APPLY NO" >> "report/${rev}-isolation.txt"
+              fi
+            done
+          done
+          cat report/LOCAL_FIXUPS.md >> "$GITHUB_STEP_SUMMARY"
+          for x in report/*-isolation.txt; do cat "$x" >> "$GITHUB_STEP_SUMMARY"; done
+      - name: Upload logs only, not compiled binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM-A217F-FDT-LOCAL-FIXUPS-ROOT-CAUSE-NOT-FLASHABLE
+          path: report/
+          retention-days: 30
+          if-no-files-found: warn
