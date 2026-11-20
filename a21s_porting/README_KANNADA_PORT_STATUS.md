@@ -12,10 +12,20 @@
 - ಹಳೆಯ A21s hardware log ನಲ್ಲಿ `/sys/class/lcd/panel/lcd_type` = `BOE_8A6220`. ಸೇರಿಸಿದ `td4150_a21s_panel.h` ನಲ್ಲಿ `.id = 0x8A6220` ಹೊಂದಿದೆ. ಆದ್ದರಿಂದ ನಿರ್ದಿಷ್ಟ panel ಆಯ್ಕೆಯಾಗಿ TD4150 ಬಳಸುವ experimental fragment `configs/a21s-boe-8a6220-experimental.fragment` ಸಿದ್ಧವಾಗಿದೆ. ಆ log ನಲ್ಲಿ Synaptics TCM SPI touchscreen ಕೂಡ ಗುರುತಾಗಿದೆ.
 - Config ಮತ್ತು Device Tree audit ವರದಿಗಳು `docs/A21S_419_TO_510_DIFF.md` ಮತ್ತು `a21s_porting/` ನಲ್ಲಿ ಇವೆ.
 
+## ಅಪ್‌ಲೋಡ್ ಮಾಡಿದ A21s boot.img — ನಿಖರ ಮಾಹಿತಿ
+
+- ಮೂಲ `boot-a21s.img` ಪರಿಶೀಲನೆಯ ಪ್ರಕಾರ model **SM-A217F**, device `a21s`, kernel `4.19.325-g4a2052095396` (5.10 ಅಲ್ಲ).
+- Samsung `ANDROID!` boot header **v2**, page size **2048**, kernel size **34,068,504 bytes**, ramdisk GZIP size **1,462,536 bytes**, DTB table size **140,292 bytes**.
+- Samsung `SEANDROIDENFORCE` footer ಇದೆ. KernelSU log string ಸಿಕ್ಕಿದೆ, ಆದರೆ SUSFS ಇರುವುದನ್ನು ದೃಢಪಡಿಸಿಲ್ಲ.
+- Ramdisk `build.prop` ಯಲ್ಲಿ Android 12 build `A217FXXSCDXE2` ಇದೆ. ಇದು **ಪ್ರಸ್ತುತ custom ROM ಆವೃತ್ತಿಯ ಸಾಕ್ಷಿ ಅಲ್ಲ**.
+- Kernel DTB compatible `samsung,exynos850` ಮತ್ತು pinctrl `samsung,exynos3830-pinctrl`. 5.10 source DTB compatible `samsung,exynos3830`/ `samsung,s5e3830-pinctrl` ಇರುವುದರಿಂದ Device Tree ಹೊಂದಾಣಿಕೆ ವಿಶೇಷವಾಗಿ ಪರಿಶೀಲಿಸಬೇಕು.
+- Original boot SHA-256: `af3c2406848c71639b420cf4f709a28550f7eae05caf65731db8fac50f897928`.
+- ಹೆಚ್ಚಿನ ಮಾಹಿತಿ: [docs/A21S_UPLOADED_BOOT_BASELINE.md](../docs/A21S_UPLOADED_BOOT_BASELINE.md). ಮೂಲ boot binary GitHub ಗೆ upload ಮಾಡಿಲ್ಲ.
+
 ## ಏನು ಇನ್ನೂ ಬಾಕಿ?
 
 - **SUSFS patch ಹೊಂದಾಣಿಕೆಯಾಗಿಲ್ಲ.** 5.10 patch dry-run ನಲ್ಲಿ ಕನಿಷ್ಠ ಎರಡು failed hunks ಇವೆ: `fs/namespace.c` ಮತ್ತು `fs/proc/base.c`. `KernelSU` ಮೂಲ source directory ನಿರೀಕ್ಷಿತ ಸ್ಥಳದಲ್ಲಿ ಇಲ್ಲ. Dry-run ಪರೀಕ್ಷೆಯ ಫಲಿತಾಂಶವು GitHub Actions [44681104818](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44681104818) ನಲ್ಲಿ ಇದೆ. SUSFS ಇನ್ನೂ integrate ಆಗಿಲ್ಲ.
-- ಪೂರ್ಣ Linux 5.10 `Image` compilation ಮತ್ತು ಅದರ ಫಲಿತಾಂಶವನ್ನು ಖಚಿತಪಡಿಸುವುದು.
+- Linux 5.10 `Image` ಈಗಾಗಲೇ GitHub Actions run [44680936353](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44680936353) ನಲ್ಲಿ **compile ಯಶಸ್ವಿಯಾಗಿದೆ**, ಆದರೆ ಅದು A12s ಆಧಾರಿತ experimental configuration; **A21s boot-test / ABI verification ಅಥವಾ partition-fit approval ಅಲ್ಲ**.
 - A21s ನ camera, sensors, charging/PMIC, modem, storage, audio ಹಾಗೂ device-specific DTBO bindings ಪರಿಶೀಲನೆ.
 - User ROM / One UI 9 vendor ABI, boot header v2, ramdisk, DTB ಮತ್ತು bootloader ಹೊಂದಾಣಿಕೆ.
 - A21s boot partition ಗಾತ್ರ 37,748,736 bytes. ಹಿಂದಿನ A12s-5.10 + A21s hybrid ಕನಿಷ್ಠ 39,780,368 bytes ಎಂದು preflight ವರದಿ ತೋರಿಸಿತ್ತು. 36 MiB ಮಿತಿಗೆ ಹೊಂದುವ ಹೊಸ Image ಇನ್ನೂ ಸಿದ್ಧವಾಗಿಲ್ಲ.
