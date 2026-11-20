@@ -8,6 +8,7 @@ on:
       - '.github/workflows/a21s-susfs-full-link-probe.yml'
       - 'a21s_porting/susfs_compile_probe.sh'
       - 'a21s_porting/adapt_susfs_patch.py'
+      - 'a21s_porting/audit_kernel_link_errors.py'
   workflow_dispatch:
 
 permissions:
@@ -120,6 +121,17 @@ jobs:
           fi
           exit "$result"
 
+      - name: Explain missing KernelSU/SUSFS linker symbols (report only)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -s report/full-image-build.log ]; then
+            python3 kernel/a21s_porting/audit_kernel_link_errors.py \
+              --build-log report/full-image-build.log --out-dir report
+            cat report/LINK_UNDEFINED_SYMBOLS.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Check conditional SM-A217F partition fit
         if: always()
         shell: bash
@@ -142,5 +154,7 @@ jobs:
             report/*.log
             report/*.config
             report/boot-fit/
+            report/*.md
+            report/*.json
           retention-days: 30
           if-no-files-found: warn
