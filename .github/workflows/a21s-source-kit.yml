@@ -30,6 +30,9 @@ jobs:
           sparse-checkout: |
             a21s_porting
             docs/A21S_419_TO_510_DIFF.md
+            arch/arm64/boot/dts/Makefile
+            arch/arm64/boot/dts/samsung/a21s
+            drivers/soc/samsung/Kconfig
             drivers/video/fbdev/exynos/panel/Kconfig
             drivers/video/fbdev/exynos/panel/Makefile
             drivers/video/fbdev/exynos/panel/td4150
@@ -40,8 +43,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p kit/panel kit/docs
+          mkdir -p kit/panel kit/docs kit/dtbo-source-tree kit/soc
           cp -r a21s_porting kit/
+          cp -r arch/arm64/boot/dts/samsung/a21s kit/dtbo-source-tree/
+          cp arch/arm64/boot/dts/Makefile kit/dtbo-source-tree/Makefile
+          cp drivers/soc/samsung/Kconfig kit/soc/Kconfig
           cp -r drivers/video/fbdev/exynos/panel/td4150 kit/panel/
           cp -r drivers/video/fbdev/exynos/panel/hx83104 kit/panel/
           cp -r drivers/video/fbdev/exynos/panel/nt36575 kit/panel/
