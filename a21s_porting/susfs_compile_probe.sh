@@ -71,50 +71,8 @@ make -C "$kernel_dir" O="$GITHUB_WORKSPACE/out" exynos850-a12snsxx_defconfig \
 make -C "$kernel_dir" O="$GITHUB_WORKSPACE/out" olddefconfig \
   >> "$report_dir/configure.log" 2>&1
 cp "$GITHUB_WORKSPACE/out/.config" "$report_dir/effective.config"
-if ! grep -q '^CONFIG_KSU_SUSFS=y
-  echo 'BLOCKED: SUSFS config did not resolve in temporary checkout' > "$report_dir/result.txt"
-  exit 1
-fi
-
-set +e
-timeout 30m make -C "$kernel_dir" -j2 O="$GITHUB_WORKSPACE/out" fs/susfs.o \
-  > "$report_dir/susfs-object-build.log" 2>&1
-result=$?
-set -e
-echo "$result" > "$report_dir/susfs-object-exit-code.txt"
-tail -n 100 "$report_dir/susfs-object-build.log" > "$report_dir/susfs-build-tail.txt"
-if [ "$result" -eq 0 ]; then
-  echo 'SUSFS OBJECT COMPILED IN TEMP CHECKOUT; KernelSU hooks/linking/device boot NOT verified' \
-    > "$report_dir/result.txt"
-else
-  echo 'SUSFS OBJECT COMPILE FAILED: resolve vendor KernelSU / SUSFS API incompatibilities before integration' \
-    > "$report_dir/result.txt"
-fi
-cat "$report_dir/result.txt"
-exit "$result"
- "$report_dir/effective.config" || ! grep -q '^CONFIG_KSU_SUSFS_ENABLE_LOG=y
-  echo 'BLOCKED: SUSFS config did not resolve in temporary checkout' > "$report_dir/result.txt"
-  exit 1
-fi
-
-set +e
-timeout 30m make -C "$kernel_dir" -j2 O="$GITHUB_WORKSPACE/out" fs/susfs.o \
-  > "$report_dir/susfs-object-build.log" 2>&1
-result=$?
-set -e
-echo "$result" > "$report_dir/susfs-object-exit-code.txt"
-tail -n 100 "$report_dir/susfs-object-build.log" > "$report_dir/susfs-build-tail.txt"
-if [ "$result" -eq 0 ]; then
-  echo 'SUSFS OBJECT COMPILED IN TEMP CHECKOUT; KernelSU hooks/linking/device boot NOT verified' \
-    > "$report_dir/result.txt"
-else
-  echo 'SUSFS OBJECT COMPILE FAILED: resolve vendor KernelSU / SUSFS API incompatibilities before integration' \
-    > "$report_dir/result.txt"
-fi
-cat "$report_dir/result.txt"
-exit "$result"
- "$report_dir/effective.config"; then
-  echo 'BLOCKED: SUSFS config did not resolve in temporary checkout' > "$report_dir/result.txt"
+if ! grep -q '^CONFIG_KSU_SUSFS=y$' "$report_dir/effective.config" || ! grep -q '^CONFIG_KSU_SUSFS_ENABLE_LOG=y$' "$report_dir/effective.config"; then
+  echo 'BLOCKED: SUSFS or logging config did not resolve in temporary checkout' > "$report_dir/result.txt"
   exit 1
 fi
 
