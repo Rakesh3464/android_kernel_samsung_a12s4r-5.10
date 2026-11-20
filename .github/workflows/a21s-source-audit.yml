@@ -47,6 +47,15 @@ jobs:
             --out-dir reports
           cat reports/A21S_SOURCE_AUDIT.md
 
+      - name: Compare 4.19 A21s and 5.10 A12s defconfig options
+        shell: bash
+        run: |
+          python3 kernel510/a21s_porting/config_diff.py \
+            --source-419 atlas419 \
+            --source-510 kernel510 \
+            --out-dir reports
+          sed -n '1,30p' reports/A21S_CONFIG_DIFF.md
+
       - name: Upload source comparison (NOT a flashable image)
         uses: actions/upload-artifact@v4
         with:
