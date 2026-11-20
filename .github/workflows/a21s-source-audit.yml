@@ -1,0 +1,56 @@
+name: A21s 4.19 to 5.10 source audit
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - 'a21s_porting/**'
+      - '.github/workflows/a21s-source-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare-sources:
+    name: Inventory A21s DTS, DTBO and SoC configs (no flashing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout kernel 5.10 development branch (sparse)
+        uses: actions/checkout@v4
+        with:
+          path: kernel510
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            a21s_porting
+            arch/arm64/boot/dts
+            arch/arm64/configs
+            drivers/soc/samsung
+
+      - name: Checkout A21s Linux 4.19 reference (sparse)
+        shell: bash
+        run: |
+          git clone --depth=1 --filter=blob:none --sparse --branch master \
+            https://github.com/Rakesh3464/atlas-new.git atlas419
+          git -C atlas419 sparse-checkout set \
+            arch/arm64/boot/dts arch/arm64/configs drivers/soc/samsung
+
+      - name: Generate comparison report and JSON inventory
+        shell: bash
+        run: |
+          python3 kernel510/a21s_porting/audit.py \
+            --source-419 atlas419 \
+            --source-510 kernel510 \
+            --out-dir reports
+          cat reports/A21S_SOURCE_AUDIT.md
+
+      - name: Upload source comparison (NOT a flashable image)
+        uses: actions/upload-artifact@v4
+        with:
+          name: a21s-4.19-to-5.10-source-audit
+          path: reports/
+          retention-days: 30
+          if-no-files-found: error
