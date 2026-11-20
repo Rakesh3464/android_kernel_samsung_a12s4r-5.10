@@ -55,6 +55,16 @@ jobs:
           grep -q '^CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_SPI=y$' report/effective.config
           grep -q '^CONFIG_A21S_EXPERIMENTAL_DTBO=y$' report/effective.config
           echo 'Retaining current board and security config; only testing compiler -Oz size optimization.' > report/README.txt
+      - name: Keep mremap compile-time assertion intact with local -O2 override
+        shell: bash
+        run: |
+          set -euo pipefail
+          # -Oz triggers BUILD_BUG at mm/mremap.c:419. Restore conventional
+          # optimization for this one source file. Do not remove assertions.
+          printf '\n# Experimental -Oz compatibility exception; not for production\nCFLAGS_mremap.o += -O2\n' >> kernel/mm/Makefile
+          grep 'CFLAGS_mremap.o += -O2' kernel/mm/Makefile
+          echo 'mremap.c retains BUILD_BUG(); compiling that object at -O2' > report/compiler-exception.txt
+
       - name: Compile ARM64 Image using clang -Oz (size experiment only)
         shell: bash
         run: |
