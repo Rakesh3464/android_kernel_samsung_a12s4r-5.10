@@ -1,0 +1,105 @@
+name: A21s Linux 5.10 experimental panel compile (NOT FLASHABLE)
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - 'drivers/video/fbdev/exynos/panel/Kconfig'
+      - 'drivers/video/fbdev/exynos/panel/Makefile'
+      - 'drivers/video/fbdev/exynos/panel/td4150/**'
+      - 'drivers/video/fbdev/exynos/panel/hx83104/**'
+      - 'drivers/video/fbdev/exynos/panel/nt36575/**'
+      - '.github/workflows/a21s-panel-compile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  panel-compile:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Linux 5.10 A21s development branch
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install ARM64 kernel compile tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            make build-essential bc bison flex libssl-dev libelf-dev python3 \
+            clang-14 lld-14 llvm-14 \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi
+          /usr/lib/llvm-14/bin/clang --version | head -n 2
+
+      - name: Configure Linux 5.10 A12s baseline with experimental A21s panel sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          mkdir -p report
+          make -C kernel O="$GITHUB_WORKSPACE/out" exynos850-a12snsxx_defconfig \
+            > report/config.log 2>&1
+          for option in \
+            EXYNOS_DECON_LCD_TD4150_A21S \
+            EXYNOS_DECON_LCD_HX83104_A21S \
+            EXYNOS_DECON_LCD_NT36575_A21S; do
+            kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -e "$option"
+          done
+          make -C kernel O="$GITHUB_WORKSPACE/out" olddefconfig >> report/config.log 2>&1
+          cp "$GITHUB_WORKSPACE/out/.config" report/effective.config
+          grep -E '^CONFIG_EXYNOS_DECON_LCD_(TD4150|HX83104|NT36575)_A21S=' \
+            report/effective.config | tee report/panel-choices.txt
+          for option in \
+            EXYNOS_DECON_LCD_TD4150_A21S \
+            EXYNOS_DECON_LCD_HX83104_A21S \
+            EXYNOS_DECON_LCD_NT36575_A21S; do
+            grep -q "^CONFIG_${option}=y$" report/effective.config || {
+              echo "BLOCKED: ${option} did not resolve to y" | tee report/ERROR.txt
+              exit 1
+            }
+          done
+
+      - name: Compile three A21s panel driver objects (no boot image)
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          mkdir -p report
+          timeout 65m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" \
+            drivers/video/fbdev/exynos/panel/td4150/td4150.o \
+            drivers/video/fbdev/exynos/panel/hx83104/hx83104.o \
+            drivers/video/fbdev/exynos/panel/nt36575/nt36575.o \
+            > report/panel-build.log 2>&1
+          result=$?
+          echo "$result" > report/exit-code.txt
+          tail -n 130 report/panel-build.log | tee report/build-tail.txt || true
+          for panel in td4150 hx83104 nt36575; do
+            ls -lh "$GITHUB_WORKSPACE/out/drivers/video/fbdev/exynos/panel/${panel}/${panel}.o" \
+              >> report/built-objects.txt 2>&1 || true
+          done
+          printf '%s\n' \
+            'Experimental A21s panel driver compile only.' \
+            'Not a completed A21s Linux 5.10 port.' \
+            'Not tested on actual A21s hardware.' \
+            'No boot.img is created or approved for flashing.' \
+            > report/NOT_FLASHABLE.txt
+          exit "$result"
+
+      - name: Upload object compilation logs (no flashable binaries)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a21s-panel-510-compile-report-NOT-FLASHABLE
+          path: report/
+          retention-days: 30
+          if-no-files-found: warn
