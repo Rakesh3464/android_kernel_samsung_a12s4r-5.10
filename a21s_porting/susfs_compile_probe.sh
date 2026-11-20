@@ -24,8 +24,12 @@ python3 "$kernel_dir/a21s_porting/adapt_susfs_patch.py" \
   > "$report_dir/adapt.log" 2>&1
 
 # Work exclusively inside Actions checkout; never commit to the real branch.
-(cd "$kernel_dir" && patch --batch --forward --fuzz=0 -p1 < "$report_dir/samsung-adapted.patch") \
+(cd "$kernel_dir" && patch --batch --forward --fuzz=2 -p1 < "$report_dir/samsung-adapted.patch") \
   > "$report_dir/patch-apply.log" 2>&1
+if grep -q "with fuzz" "$report_dir/patch-apply.log"; then
+  printf "%s\n" "WARNING: Some upstream SUSFS vendor hunks require fuzz. Build-only experiment; patch locations need manual code review before production." > "$report_dir/FUZZ_HUNKS_REQUIRE_REVIEW.txt"
+  grep "with fuzz" "$report_dir/patch-apply.log" >> "$report_dir/FUZZ_HUNKS_REQUIRE_REVIEW.txt" || true
+fi
 cp "$upstream_dir/kernel_patches/fs/susfs.c" "$kernel_dir/fs/susfs.c"
 for h in "$upstream_dir"/kernel_patches/include/linux/susfs*.h; do
   test -s "$h" || continue
