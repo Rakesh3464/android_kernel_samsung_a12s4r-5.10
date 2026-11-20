@@ -5,13 +5,6 @@ dtb-y += exynos/exynos7-espresso.dtb
 dtb-y += exynos/s5e3830.dtb
 dtbo-y += samsung/a12s/a12s_eur_open_w00_r00.dtbo samsung/a12s/a12s_eur_open_w00_r01.dtbo
 
-targets += dtbs
-DTB_LIST  := $(dtb-y) $(dtbo-y)
-always    := $(DTB_LIST)
-
-dtbs: $(addprefix $(obj)/, $(DTB_LIST))
-
-clean-files := *.dtb*
 # Experimental A21s overlays: NOT included in A12s baseline unless explicitly enabled.
 dtbo-$(CONFIG_A21S_EXPERIMENTAL_DTBO) += \
   samsung/a21s/a21s_eur_open_w00_r00.dtbo \
@@ -19,3 +12,11 @@ dtbo-$(CONFIG_A21S_EXPERIMENTAL_DTBO) += \
   samsung/a21s/a21s_eur_open_w00_r02.dtbo \
   samsung/a21s/a21s_eur_open_w00_r03.dtbo \
   samsung/a21s/a21s_eur_open_w00_r06.dtbo
+
+targets += dtbs
+DTB_LIST  := $(dtb-y) $(dtbo-y)
+always    := $(DTB_LIST)
+
+dtbs: $(addprefix $(obj)/, $(DTB_LIST))
+
+clean-files := *.dtb*
