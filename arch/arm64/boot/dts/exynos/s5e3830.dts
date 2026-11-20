@@ -6274,6 +6274,7 @@
 	};
 
 	__symbols__ {
+		chosen = "/chosen";
 		pinctrl_0 = "/pinctrl@11850000";
 		gpa0 = "/pinctrl@11850000/gpa0";
 		gpa1 = "/pinctrl@11850000/gpa1";
