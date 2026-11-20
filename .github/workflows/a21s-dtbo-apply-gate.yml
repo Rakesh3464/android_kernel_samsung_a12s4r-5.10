@@ -53,6 +53,29 @@ jobs:
             --out-dir report
           cat report/RELOCATION_AUDIT.md >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Isolate overlay symbol-metadata failure on disposable copies
+        shell: bash
+        run: |
+          set -u
+          mkdir -p applied report
+          base="$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/exynos/s5e3830.dtb"
+          for rev in r00 r01 r02 r03 r06; do
+            source="$GITHUB_WORKSPACE/out/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_${rev}.dtbo"
+            trial="applied/no-overlay-symbols-${rev}.dtbo"
+            cp "$source" "$trial"
+            if ! fdtput -r "$trial" /__symbols__ > "report/${rev}-fdtput.log" 2>&1; then
+              echo "$rev: Could not remove symbol metadata from diagnostic copy" > "report/${rev}-symbol-isolation.txt"
+              continue
+            fi
+            if fdtoverlay -i "$base" -o "applied/no-symbols-${rev}.dtb" "$trial" > "report/${rev}-symbol-isolation.log" 2>&1; then
+              echo "$rev: DIAGNOSTIC apply passes WITHOUT overlay /__symbols__" > "report/${rev}-symbol-isolation.txt"
+            else
+              echo "$rev: still fails without overlay /__symbols__" > "report/${rev}-symbol-isolation.txt"
+            fi
+          done
+          cat report/*-symbol-isolation.txt >> "$GITHUB_STEP_SUMMARY"
+          # Do not upload the binary test copies: only text reports are artifacts.
+
       - name: Apply A21s overlays to Linux 5.10 base DTB
         shell: bash
         run: |
