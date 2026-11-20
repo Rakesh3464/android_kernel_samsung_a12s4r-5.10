@@ -1,0 +1,91 @@
+name: A21s KernelSU API compatibility source scan (NO FLASH)
+on:
+  push:
+    branches: [a21s-susfs-port]
+    paths: ['.github/workflows/a21s-ksu-api-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - name: Check out minimal diagnostics only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: |
+            docs/A21S_510_KSU_LINK_AND_FDT_BLOCKERS_KANNADA.md
+      - name: Retrieve pinned KernelSU candidates (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p report candidates
+          git clone --depth 1 --filter=blob:none --branch dev \
+            https://github.com/KernelSU-Next/KernelSU-Next.git candidates/ksu-next > report/ksu-next-clone.log 2>&1
+          git clone --depth 1 --filter=blob:none --branch main \
+            https://github.com/tiann/KernelSU.git candidates/ksu-main > report/ksu-main-clone.log 2>&1
+          echo 'aa235b99574b5b349cdb4980bcb98fd58e6abb28  ksu-next' > report/expected-shas.txt
+          echo 'ff70c90d6de46b80b79d0c74d360d85611797b27  ksu-main' >> report/expected-shas.txt
+          for entry in 'ksu-next aa235b99574b5b349cdb4980bcb98fd58e6abb28' \
+                       'ksu-main ff70c90d6de46b80b79d0c74d360d85611797b27'; do
+            set -- $entry
+            actual="$(git -C "candidates/$1" rev-parse HEAD)"
+            echo "$1 $actual" >> report/actual-shas.txt
+            test "$actual" = "$2" || { echo "Upstream changed: manual review required" >&2; exit 1; }
+          done
+      - name: Check exactly the KernelSU linker symbols missing on SM-A217F
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > report/undefined-symbols.txt <<'EOF'
+          ksu_handle_setresuid
+          ksu_handle_sys_reboot
+          __ksu_is_allow_uid_for_current
+          ksu_handle_faccessat
+          ksu_su_compat_enabled
+          ksu_handle_sys_read
+          ksu_is_init_rc_hook_enabled
+          ksu_handle_vfs_fstat
+          ksu_handle_stat
+          ksu_preinit_handle_post_execveat
+          ksu_handle_post_execveat_sucompat
+          ksu_handle_execveat_sucompat
+          ksu_setup_preinit_file
+          ksu_handle_execveat
+          setup_selinux
+          susfs_is_current_ksu_domain
+          susfs_ksu_sid
+          susfs_priv_app_sid
+          ksu_selinux_hide_running
+          fake_status
+          EOF
+          {
+            echo '# SM-A217F / kernel 5.10 KernelSU candidate API audit'
+            echo 'Read-only symbol presence only. This DOES NOT prove symbols are defined, linked or compatible.'
+            echo
+          } > report/SUMMARY.md
+          for candidate in ksu-next ksu-main; do
+            echo "## $candidate" >> report/SUMMARY.md
+            for sym in $(cat report/undefined-symbols.txt); do
+              if git -C "candidates/$candidate" grep -n -F -w -- "$sym" -- kernel/ > "report/$candidate-$sym.txt" 2>/dev/null; then
+                count="$(wc -l < "report/$candidate-$sym.txt")"
+                echo "$sym: FOUND $count source occurrences" >> report/SUMMARY.md
+              else
+                echo "$sym: NOT FOUND in kernel sources" >> report/SUMMARY.md
+                rm -f "report/$candidate-$sym.txt"
+              fi
+            done
+            echo >> report/SUMMARY.md
+          done
+          cat report/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload text evidence ONLY
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM-A217F-KSU-CANDIDATE-SOURCE-API-AUDIT-NOT-FLASHABLE
+          path: report/
+          retention-days: 30
+          if-no-files-found: warn
