@@ -39,6 +39,12 @@ jobs:
             echo "python3 -m py_compile $script"
             python3 -m py_compile "$script"
           done
+      - name: Validate SM-A217F boot fit calculator and overflow safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 a21s_porting/test_boot_fit.py -v
+
       - name: Verify SUSFS safety guard in disposable compile probe
         shell: bash
         run: |
