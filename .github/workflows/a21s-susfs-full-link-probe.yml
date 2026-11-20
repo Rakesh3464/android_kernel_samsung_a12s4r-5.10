@@ -126,7 +126,7 @@ jobs:
         run: |
           mkdir -p report/boot-fit
           if [ -s report/image-size.txt ]; then
-            python3 kernel/a21s_porting/boot_fit.py --size-report report/image-size.txt --out-dir report/boot-fit
+            python3 kernel/a21s_porting/boot_fit.py --size-report report/image-size.txt --require-fit --out-dir report/boot-fit
             cat report/boot-fit/A21S_BOOT_FIT.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo 'NO IMAGE or link failure: NOT FLASHABLE' > report/boot-fit/BLOCKED.txt
