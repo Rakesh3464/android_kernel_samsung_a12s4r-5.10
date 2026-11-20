@@ -1,0 +1,91 @@
+name: A21s BOE 5.10 clang -Oz size probe (NOT FLASHABLE)
+
+on:
+  push:
+    branches: [a21s-susfs-port]
+    paths: ['.github/workflows/a21s-boe-oz-size-probe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-image:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 115
+    steps:
+      - name: Checkout experimental Linux 5.10
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install ARM64 compiler
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            make build-essential bc bison flex libssl-dev libelf-dev python3 \
+            clang-14 lld-14 llvm-14 gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi
+      - name: Configure A21s BOE TD4150 and Synaptics SPI
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          mkdir -p report
+          make -C kernel O="$GITHUB_WORKSPACE/out" exynos850-a12snsxx_defconfig > report/configure.log 2>&1
+          frag=kernel/a21s_porting/configs/a21s-boe-8a6220-experimental.fragment
+          while IFS= read -r line; do
+            case "$line" in
+              CONFIG_*=y)
+                opt="${line%%=*}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -e "${opt#CONFIG_}"
+                ;;
+              '# CONFIG_'*' is not set')
+                opt="${line#\# }"
+                opt="${opt% is not set}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -d "${opt#CONFIG_}"
+                ;;
+            esac
+          done < "$frag"
+          make -C kernel O="$GITHUB_WORKSPACE/out" olddefconfig >> report/configure.log 2>&1
+          cp "$GITHUB_WORKSPACE/out/.config" report/effective.config
+          grep -q '^CONFIG_EXYNOS_DECON_LCD_TD4150_A21S=y$' report/effective.config
+          grep -q '^CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_SPI=y$' report/effective.config
+          grep -q '^CONFIG_A21S_EXPERIMENTAL_DTBO=y$' report/effective.config
+          echo 'Retaining current board and security config; only testing compiler -Oz size optimization.' > report/README.txt
+      - name: Compile ARM64 Image using clang -Oz (size experiment only)
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          timeout 83m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" KCFLAGS=-Oz Image > report/image-build.log 2>&1
+          status=$?
+          echo "$status" > report/image-exit-code.txt
+          if [ -s "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" ]; then
+            wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
+            sha256sum "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-sha256.txt
+          fi
+          tail -n 90 report/image-build.log
+          exit "$status"
+      - name: Calculate partition size budget (NO IMAGE PACKAGED)
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p report/boot-fit
+          if [ -s report/image-size.txt ]; then
+            python3 kernel/a21s_porting/boot_fit.py --size-report report/image-size.txt --out-dir report/boot-fit
+            cat report/boot-fit/A21S_BOOT_FIT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'NO COMPILATION: no kernel image size available; NOT FLASHABLE' > report/boot-fit/BLOCKED.txt
+          fi
+      - name: Upload log evidence only, not an Image or boot.img
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM-A217F-BOE-OZ-SIZE-EXPERIMENT-NOT-FLASHABLE
+          path: report/
+          retention-days: 30
+          if-no-files-found: warn
