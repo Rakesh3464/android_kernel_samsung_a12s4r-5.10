@@ -71,7 +71,7 @@ jobs:
           else
             echo "BLOCKED: SUSFS patch does not cleanly apply to current vendor kernel source" | tee report/result.txt
           fi
-          tail -n 80 report/susfs-patch-dryrun.log > report/patch-log-tail.txt || true
+          tail -n 80 report/susfs-patch-dryrun.log | tee report/patch-log-tail.txt || true
           cat report/result.txt
 
       - name: Upload SUSFS compatibility report only
