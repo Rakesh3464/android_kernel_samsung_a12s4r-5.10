@@ -37,6 +37,12 @@ for h in "$upstream_dir"/kernel_patches/include/linux/susfs*.h; do
 done
 test -s "$kernel_dir/fs/susfs.c"
 test -s "$kernel_dir/include/linux/susfs.h"
+# Collect read-only upstream evidence to identify required SUSFS logging/Kconfig
+# symbols rather than hiding compiler errors with guessed function definitions.
+sed -n '1,190p' "$kernel_dir/fs/susfs.c" > "$report_dir/susfs-first-190-lines.txt"
+find "$upstream_dir/kernel_patches" -type f \\( -name '*.c' -o -name '*.h' -o -name 'Kconfig*' \\) \
+  -exec grep -Hn -E 'SUSFS_LOGI_RL|config KSU_SUSFS|define SUSFS_LOG' {} + \
+  > "$report_dir/susfs-macro-definitions.txt" 2>/dev/null || true
 
 # Kconfig option is missing without a matching KernelSU integration; define
 # it in the DISPOSABLE checkout so we can compile-TEST the SUSFS object.
