@@ -1,0 +1,121 @@
+name: A21s 5.10 SUSFS full Image link diagnostic (NOT FLASHABLE)
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - '.github/workflows/a21s-susfs-full-link-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  susfs-boe-image-link:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 110
+    steps:
+      - name: Checkout private disposable kernel workspace
+        uses: actions/checkout@v4
+        with:
+          path: kernel
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Android arm64 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            make build-essential bc bison flex libssl-dev libelf-dev python3 \
+            clang-14 lld-14 llvm-14 gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi device-tree-compiler
+
+      - name: Fetch exact SUSFS source revision used in previous dry-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p report
+          git clone --depth 1 --branch gki-android13-5.10 \
+            https://gitlab.com/simonpunk/susfs4ksu.git susfs \
+            > report/susfs-clone.log 2>&1
+          sha="$(git -C susfs rev-parse HEAD)"
+          echo "$sha" > report/upstream-sha.txt
+          test "$sha" = "d480b312d650601888550529695706f4a112e29e"
+
+      - name: Apply vendor SUSFS patch to ephemeral checkout, then compile object
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash kernel/a21s_porting/susfs_compile_probe.sh kernel susfs report
+
+      - name: Enable A21s BOE TD4150, Synaptics and experimental DTBO
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          frag="kernel/a21s_porting/configs/a21s-boe-8a6220-experimental.fragment"
+          while IFS= read -r line; do
+            case "$line" in
+              CONFIG_*=y)
+                symbol="${line%%=*}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -e "${symbol#CONFIG_}"
+                ;;
+              '# CONFIG_'*' is not set')
+                symbol="${line#\# }"
+                symbol="${symbol% is not set}"
+                kernel/scripts/config --file "$GITHUB_WORKSPACE/out/.config" -d "${symbol#CONFIG_}"
+                ;;
+            esac
+          done < "$frag"
+          make -C kernel O="$GITHUB_WORKSPACE/out" olddefconfig > report/boe-config.log 2>&1
+          cp "$GITHUB_WORKSPACE/out/.config" report/susfs-boe-effective.config
+          grep -q '^CONFIG_KSU_SUSFS=y$' report/susfs-boe-effective.config
+          grep -q '^CONFIG_KSU_SUSFS_ENABLE_LOG=y$' report/susfs-boe-effective.config
+          grep -q '^CONFIG_EXYNOS_DECON_LCD_TD4150_A21S=y$' report/susfs-boe-effective.config
+          grep -q '^CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_SPI=y$' report/susfs-boe-effective.config
+
+      - name: Attempt experimental full kernel Image link
+        shell: bash
+        run: |
+          set -uo pipefail
+          export PATH="/usr/lib/llvm-14/bin:$PATH"
+          export ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          timeout 70m make -C kernel -j2 O="$GITHUB_WORKSPACE/out" Image > report/full-image-build.log 2>&1
+          result=$?
+          echo "$result" > report/full-image-exit-code.txt
+          tail -n 115 report/full-image-build.log > report/full-image-build-tail.txt
+          cat report/full-image-build-tail.txt
+          if [ "$result" -eq 0 ] && [ -s "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" ]; then
+            wc -c "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-size.txt
+            sha256sum "$GITHUB_WORKSPACE/out/arch/arm64/boot/Image" > report/image-sha256.txt
+          fi
+          exit "$result"
+
+      - name: Check conditional SM-A217F partition fit
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p report/boot-fit
+          if [ -s report/image-size.txt ]; then
+            python3 kernel/a21s_porting/boot_fit.py --size-report report/image-size.txt --out-dir report/boot-fit
+            cat report/boot-fit/A21S_BOOT_FIT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'NO IMAGE or link failure: NOT FLASHABLE' > report/boot-fit/BLOCKED.txt
+          fi
+
+      - name: Save compiler logs and size only, never binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM-A217F-SUSFS-BOE-FULL-LINK-DIAGNOSTIC-NOT-FLASHABLE
+          path: |
+            report/*.txt
+            report/*.log
+            report/*.config
+            report/boot-fit/
+          retention-days: 30
+          if-no-files-found: warn
