@@ -6,6 +6,8 @@ on:
       - a21s-susfs-port
     paths:
       - '.github/workflows/a21s-susfs-preflight.yml'
+      - 'a21s_porting/adapt_susfs_patch.py'
+      - 'a21s_porting/susfs_hunk_context.py'
   workflow_dispatch:
 
 permissions:
