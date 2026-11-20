@@ -1,0 +1,48 @@
+name: A21s DTBO syntax preflight (not flashable)
+
+on:
+  push:
+    branches:
+      - a21s-susfs-port
+    paths:
+      - 'a21s_porting/preflight.py'
+      - 'a21s_porting/dts_reference/**'
+      - '.github/workflows/a21s-dtbo-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-a21s-dts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout staged reference overlays and existing target DTS
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            a21s_porting
+            arch/arm64/boot/dts/samsung/a12s
+
+      - name: Install Device Tree Compiler
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq device-tree-compiler
+
+      - name: Validate 5 A21s reference DTS files (syntax only)
+        shell: bash
+        run: |
+          python3 a21s_porting/preflight.py --root . --output reports/a21s-dtbo-preflight
+
+      - name: Upload diagnostics and analysis (no binaries)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a21s-dtbo-syntax-report-NOT-FLASHABLE
+          path: reports/a21s-dtbo-preflight/
+          if-no-files-found: warn
+          retention-days: 30
