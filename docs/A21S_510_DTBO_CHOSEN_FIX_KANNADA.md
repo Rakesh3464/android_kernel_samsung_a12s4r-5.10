@@ -14,6 +14,15 @@
 - Development branch ನಲ್ಲಿ base DTS ಗೆ ಕೇವಲ `chosen = "/chosen";` symbol ಸೇರಿಸಲಾಗಿದೆ (commit [218952a](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/commit/218952a1062344072df50b43c4bb14a419e20fcc)).
 - [GitHub Actions ಮರುಪರೀಕ್ಷೆ #44731959612](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44731959612) ಇದರ ನಂತರ ಐದು overlays ಗಳನ್ನು *compiled Linux 5.10 base DTB* ಮೇಲೆಯೇ `fdtoverlay` ಮೂಲಕ apply ಮಾಡುತ್ತದೆ. **Action ಅಂತಿಮ ಫಲಿತಾಂಶ ಪರಿಶೀಲಿಸುವವರೆಗೆ PASS ಎಂದು ಹೇಳಬೇಡಿ.**
 
+## 20 ನವೆಂಬರ್ — ಹೆಚ್ಚು ನಿಖರ ಪರೀಕ್ಷೆಯ ಫಲಿತಾಂಶ
+
+- [Compiled FDT audit #44732497020](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44732497020) ನಲ್ಲಿ ಎಲ್ಲಾ ಐದು A21s revisions ಗಳ external fixups ಅನ್ನು ಪರಿಶೀಲಿಸಲಾಗಿದೆ. `r00`: 118, `r01`: 120, `r02/r03/r06`: 121.
+- ಐದು revisions ಗಳಲ್ಲೂ **missing base symbols = 0**, **base symbol path errors = 0**, **missing external fixup source properties = 0**. ಇದು `chosen` symbol ನಂತರದ ಸ್ಥಿತಿ.
+- ಆದರೂ **ಎಲ್ಲಾ ಐದು `fdtoverlay` apply ಕಾರ್ಯಗಳು `FDT_ERR_NOTFOUND` ಎಂದು ವಿಫಲವಾಗಿವೆ**. ಅಂದರೆ ಹೊರಗಿನ symbol mapping ಮಾತ್ರ ಸಮಸ್ಯೆಯಲ್ಲ.
+- [ಹೆಚ್ಚಿನ symbol-metadata isolation #44733101076](https://github.com/Rakesh3464/android_kernel_samsung_a12s4r-5.10/actions/runs/44733101076) ನಲ್ಲಿ overlay `/__symbols__` path validation ಹಾಗೂ ಪರೀಕ್ಷಾ binary *copies* ಗಳಿಂದ symbol table ತೆಗೆದು overlay apply ಮಾಡುವ ಪ್ರಯೋಗ ಸೇರಿಸಲಾಗಿದೆ. ಅಂತಿಮ ಫಲಿತಾಂಶ ಪರಿಶೀಲನೆ ಬಾಕಿ. ಈ diagnostic copies GitHub ಗೆ upload ಅಥವಾ phone ಗೆ flash ಮಾಡುವುದಿಲ್ಲ.
+
+**ಸುರಕ್ಷತಾ ನಿರ್ಣಯ:** ಐದು DTBO apply ಪರೀಕ್ಷೆಗಳು ಇನ್ನೂ ವಿಫಲವಾಗಿರುವುದರಿಂದ SM-A217F ಗಾಗಿ Linux 5.10 `boot.img` flash-ready ಅಲ್ಲ.
+
 ## ಮುಂದಿನ ನಿರ್ಬಂಧಗಳು
 
 1. ಎಲ್ಲ ಐದು revisions ನ `fdtoverlay` ಯಶಸ್ವಿಯಾಗಬೇಕು. ವಿಫಲವಾದರೆ reports ನ specific missing references ಗುರುತಿಸಬೇಕು.
