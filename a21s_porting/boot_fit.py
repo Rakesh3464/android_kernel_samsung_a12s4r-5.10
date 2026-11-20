@@ -29,6 +29,7 @@ def main():
     sources.add_argument("--image-size", type=int, help="Compiled Image length in bytes")
     sources.add_argument("--size-report", type=Path, help="wc -c report e.g. image-size.txt")
     p.add_argument("--out-dir", type=Path, default=Path("reports/boot-fit"))
+    p.add_argument("--require-fit", action="store_true", help="Fail with exit 2 if estimated boot v2 layout exceeds the recorded SM-A217F partition")
     args = p.parse_args()
     if args.image:
         kernel = args.image.stat().st_size
@@ -84,6 +85,8 @@ def main():
     ])
     (out / "A21S_BOOT_FIT.md").write_text(markdown + "\n", encoding="utf-8")
     print(markdown)
+    if args.require_fit and excess:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
