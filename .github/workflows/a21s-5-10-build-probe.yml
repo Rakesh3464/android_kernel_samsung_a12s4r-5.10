@@ -64,6 +64,13 @@ jobs:
             echo 'Image.gz is NOT a boot.img; ramdisk, DTB, boot headers and partitions also matter.'
             echo 'NOT FLASHABLE. No A21s-specific device tree, drivers or vendor ABI validation.'
           } | tee artifacts/status.txt
+          # Save the kernel binary separately as a source-build reference ONLY.
+          # This is NOT an Android boot image or safe for flashing.
+          mkdir -p artifacts/nonflashable-kernel
+          cp "$image" artifacts/nonflashable-kernel/A12S_5.10_Image.gz_NOT_FLASHABLE
+          sha256sum artifacts/nonflashable-kernel/A12S_5.10_Image.gz_NOT_FLASHABLE > artifacts/nonflashable-kernel/SHA256SUMS.txt
+          budget=$((36*1024*1024))
+          echo "Raw boot-partition space remaining before ramdisk/DTB/header: $((budget-size)) bytes" >> artifacts/status.txt
       - name: Upload logs and size measurements
         if: always()
         uses: actions/upload-artifact@v4
