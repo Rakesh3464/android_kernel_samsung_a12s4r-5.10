@@ -88,6 +88,20 @@ jobs:
               echo "Overlay application FAIL: $rev — base/overlay phandle or target mismatch; see log" | tee -a results/SUMMARY.txt
               failed=$((failed+1))
             fi
+            # Differential diagnostic: determine whether old A21s local-fixup paths
+            # are the reason libfdt reports FDT_ERR_NOTFOUND.
+            # Removing local-fixups breaks internal phandle relocation:
+            # ANY OUTPUT FROM THIS PROBE IS ALWAYS UNSAFE TO FLASH.
+            cp "results/a21s-${rev}.dtbo" "results/a21s-${rev}-no-local-fixups-PROBE.dtbo"
+            if fdtget -l "results/a21s-${rev}-no-local-fixups-PROBE.dtbo" / | grep -Fxq '__local_fixups__'; then
+              fdtput -r "results/a21s-${rev}-no-local-fixups-PROBE.dtbo" /__local_fixups__
+            fi
+            if fdtoverlay -i results/s5e3830_chosen_probe.dtb -o "results/a21s-${rev}-without-local-fixups-DIAGNOSTIC.dtb" "results/a21s-${rev}-no-local-fixups-PROBE.dtbo" >"results/${rev}-no-local-fixups.log" 2>&1; then
+              echo "DIAGNOSTIC: $rev applies WITHOUT local fixups. Broken __local_fixups__ paths are suspected; output is INVALID and MUST NOT BE FLASHED." | tee -a results/SUMMARY.txt
+            else
+              echo "DIAGNOSTIC: $rev still fails without local fixups; inspect __fixups__ path targets." | tee -a results/SUMMARY.txt
+              sed -n '1,6p' "results/${rev}-no-local-fixups.log" | tee -a results/SUMMARY.txt
+            fi
             if test -f "results/a21s-${rev}.dtbo"; then
               if fdtoverlay -i results/s5e3830_chosen_probe.dtb -o "results/a21s-${rev}-on-chosen-probe.dtb" "results/a21s-${rev}.dtbo" >"results/${rev}-chosen-probe.log" 2>&1; then
                 echo "CHOSEN PROBE PASS: $rev (structure only, NOT FLASHABLE)" | tee -a results/SUMMARY.txt
