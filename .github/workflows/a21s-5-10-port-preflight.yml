@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/a21s-5-10-port-preflight.yml'
       - 'scripts/a21s-port-audit.sh'
+      - 'scripts/compare-a21s-dt-compatible.py'
 jobs:
   inspect:
     runs-on: ubuntu-22.04
@@ -86,6 +87,15 @@ jobs:
           echo "Syntax test failures: $failed" | tee report/a21s-dtbo-syntax/status.txt
           echo 'These DTBOs are 4.19-era reference artifacts, NOT validated for 5.10 and NOT FLASHABLE.' >> report/a21s-dtbo-syntax/status.txt
           test "$failed" -eq 0
+      - name: Compare A21s versus A12s peripherals
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 kernel-5.10/scripts/compare-a21s-dt-compatible.py \
+            a21s-4.19/arch/arm64/boot/dts/samsung/a21s \
+            kernel-5.10/arch/arm64/boot/dts/samsung/a12s \
+            report/a21s-vs-a12s-peripheral-compatibles.md
+          cat report/a21s-vs-a12s-peripheral-compatibles.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload comparison report
         if: always()
         uses: actions/upload-artifact@v4
