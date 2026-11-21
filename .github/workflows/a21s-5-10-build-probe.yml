@@ -1,0 +1,64 @@
+name: Linux 5.10 build probe (NOT AN A21S PORT)
+on:
+  workflow_dispatch:
+  push:
+    branches: [a21s-5-10-port-preflight]
+    paths:
+      - '.github/workflows/a21s-5-10-build-probe.yml'
+jobs:
+  compile-probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make clang lld llvm gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi python3
+      - name: Probe ARM64 kernel build and size
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          {
+            echo 'Probe source and tool versions'
+            head -n 6 Makefile
+            clang --version | head -n 1
+            echo 'Available defconfigs:'
+            find arch/arm64/configs -type f -name '*defconfig' | head -n 40
+            echo 'Try standard arm64 defconfig; vendor config may be required.'
+          } 2>&1 | tee artifacts/preflight.txt
+          set +e
+          make O=out ARCH=arm64 CC=clang LD=ld.lld CROSS_COMPILE=aarch64-linux-gnu- defconfig > artifacts/config.log 2>&1
+          config_rc=$?
+          if [ "$config_rc" -ne 0 ]; then
+            echo "FAIL: defconfig exited $config_rc. Locate vendor defconfig and toolchain." | tee artifacts/status.txt
+            exit "$config_rc"
+          fi
+          make -j2 O=out ARCH=arm64 CC=clang LD=ld.lld CROSS_COMPILE=aarch64-linux-gnu- Image.lz4 > artifacts/compile.log 2>&1
+          build_rc=$?
+          if [ "$build_rc" -ne 0 ]; then
+            echo "FAIL: Image.lz4 build exited $build_rc" | tee artifacts/status.txt
+            exit "$build_rc"
+          fi
+          image=out/arch/arm64/boot/Image.lz4
+          if [ ! -s "$image" ]; then
+            echo 'FAIL: no Image.lz4' | tee artifacts/status.txt
+            exit 1
+          fi
+          size=$(stat -c%s "$image")
+          echo "Linux 5.10 generic Image.lz4 bytes: $size" | tee artifacts/status.txt
+          echo 'A21s reported boot budget 36 MiB = 37748736 bytes (verify exact partition size)' | tee -a artifacts/status.txt
+          echo 'This is NOT an A21s kernel port, boot.img, or validated flash artifact.' | tee -a artifacts/status.txt
+          # This probe does NOT upload or package a flashable kernel.
+      - name: Upload logs and size measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-5-10-build-probe-logs
+          path: artifacts/
+          if-no-files-found: warn
