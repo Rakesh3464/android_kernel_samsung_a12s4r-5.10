@@ -1,0 +1,101 @@
+name: A21s DTBO on 5.10 base compatibility probe (NOT FLASHABLE)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [android13-5.10-lts]
+  push:
+    branches: [a21s-5-10-port-preflight]
+    paths:
+      - '.github/workflows/a21s-dtbo-5-10-compatibility.yml'
+jobs:
+  overlay-compatibility:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out 5.10 base source
+        uses: actions/checkout@v4
+        with:
+          path: kernel-5.10
+          submodules: false
+      - name: Check out A21s original device tree
+        uses: actions/checkout@v4
+        with:
+          repository: Rakesh3464/atlas-new
+          ref: master
+          path: a21s-4.19
+          submodules: false
+          sparse-checkout: |
+            arch/arm64/boot/dts
+      - name: Install dtc and fdtoverlay
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y device-tree-compiler
+      - name: Validate each original A21s DTBO on the 5.10 base DTB
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p results
+          base=kernel-5.10/arch/arm64/boot/dts/exynos/s5e3830.dts
+          if ! dtc -@ -I dts -O dtb -o results/s5e3830_5.10.dtb "$base" > results/base.log 2>&1; then
+            echo 'BLOCKED: 5.10 base DTS did not compile. See base.log' | tee results/SUMMARY.txt
+            exit 1
+          fi
+          echo '5.10 base DTS syntax compiled successfully.' | tee results/SUMMARY.txt
+          echo '== A12s own DTBO positive control on the same 5.10 base ==' | tee -a results/SUMMARY.txt
+          a12s=kernel-5.10/arch/arm64/boot/dts/samsung/a12s/a12s_eur_open_w00_r00.dts
+          if dtc -@ -I dts -O dtb -o results/a12s-control.dtbo "$a12s" >results/a12s-control-dtc.log 2>&1; then
+            if fdtoverlay -i results/s5e3830_5.10.dtb -o results/a12s-control-combined.dtb results/a12s-control.dtbo >results/a12s-control-overlay.log 2>&1; then
+              echo 'POSITIVE CONTROL PASS: A12s own overlay applied' | tee -a results/SUMMARY.txt
+            else
+              echo 'POSITIVE CONTROL FAIL: even the matching A12s overlay did not apply; base/overlay test methodology may be invalid.' | tee -a results/SUMMARY.txt
+              sed -n '1,18p' results/a12s-control-overlay.log | tee -a results/SUMMARY.txt
+            fi
+          else
+            echo 'POSITIVE CONTROL DTS compilation FAIL; see a12s-control-dtc.log' | tee -a results/SUMMARY.txt
+          fi
+          echo '== Inspect root targets and placeholder phandles ==' | tee -a results/SUMMARY.txt
+          for src in a21s-4.19/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_r00.dts "$a12s"; do
+            echo "SOURCE: $src" | tee -a results/SUMMARY.txt
+            grep -m 8 -E 'target-path|target =|0xffffffff' "$src" | cut -c1-200 | tee -a results/SUMMARY.txt || true
+          done
+          success=0
+          failed=0
+          for rev in r00 r01 r02 r03 r06; do
+            src="a21s-4.19/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_${rev}.dts"
+            if ! dtc -@ -I dts -O dtb -o "results/a21s-${rev}.dtbo" "$src" >"results/${rev}-dtc.log" 2>&1; then
+              echo "DTBO syntax failed: $rev" | tee -a results/SUMMARY.txt
+              failed=$((failed+1))
+              continue
+            fi
+            if fdtoverlay -i results/s5e3830_5.10.dtb -o "results/a21s-${rev}-on-5.10.dtb" "results/a21s-${rev}.dtbo" >"results/${rev}-overlay.log" 2>&1; then
+              echo "Overlay application PASS: $rev (structure only)" | tee -a results/SUMMARY.txt
+              success=$((success+1))
+            else
+              echo "Overlay application FAIL: $rev — base/overlay phandle or target mismatch; see log" | tee -a results/SUMMARY.txt
+              failed=$((failed+1))
+            fi
+          done
+          echo "PASS=$success FAIL=$failed" | tee -a results/SUMMARY.txt
+          echo 'No boot.img or validated A21s Linux 5.10 kernel is produced.' | tee -a results/SUMMARY.txt
+          echo 'PASS only means fdtoverlay could apply, not that drivers, pinctrl, clocks, modules, or boot work.' | tee -a results/SUMMARY.txt
+          echo '== First overlay diagnostic lines ==' | tee -a results/SUMMARY.txt
+          for rev in r00 r01 r02 r03 r06; do
+            echo "=== $rev ===" | tee -a results/SUMMARY.txt
+            if test -f "results/${rev}-overlay.log"; then
+              sed -n '1,14p' "results/${rev}-overlay.log" | tee -a results/SUMMARY.txt
+            fi
+          done
+          cat results/SUMMARY.txt >> "$GITHUB_STEP_SUMMARY"
+          if test "$failed" -gt 0; then
+            echo "::error::A21s overlays failed on Linux 5.10 base: $failed of 5. This is a compatibility blocker."
+            exit 1
+          fi
+      - name: Upload compatibility logs only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a21s-5-10-dtbo-compatibility-NOT-FLASHABLE
+          path: results/
+          if-no-files-found: warn

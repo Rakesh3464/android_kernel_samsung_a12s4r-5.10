@@ -1,0 +1,108 @@
+name: A21s 5.10 source comparison (NOT FLASH READY)
+on:
+  pull_request:
+    branches: [android13-5.10-lts]
+  workflow_dispatch:
+  push:
+    branches: [a21s-5-10-port-preflight]
+    paths:
+      - '.github/workflows/a21s-5-10-port-preflight.yml'
+      - 'scripts/a21s-port-audit.sh'
+      - 'scripts/compare-a21s-dt-compatible.py'
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out A12s 5.10 source
+        uses: actions/checkout@v4
+        with:
+          path: kernel-5.10
+          submodules: false
+      - name: Check out A21s 4.19 hardware reference
+        uses: actions/checkout@v4
+        with:
+          repository: Rakesh3464/atlas-new
+          ref: master
+          path: a21s-4.19
+          submodules: false
+          filter: blob:none
+          sparse-checkout: |
+            arch/arm64/boot/dts
+            arch/arm64/configs
+            build.config.universal3830
+      - name: Compare hardware trees and configs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p report
+          cd kernel-5.10
+          bash scripts/a21s-port-audit.sh ../report
+          cd ..
+          {
+            echo
+            echo '== A21s original DTS candidates (4.19) =='
+            find a21s-4.19/arch/arm64/boot/dts -type f \( -iname '*a21*' -o -iname '*850*' -o -iname '*3830*' \) | sort | head -120 || true
+            echo '== A21s defconfig =='
+            if test -f a21s-4.19/arch/arm64/configs/exynos850-a21snsxx_defconfig; then
+              wc -l a21s-4.19/arch/arm64/configs/exynos850-a21snsxx_defconfig
+            else
+              echo 'MISSING A21s 4.19 defconfig'
+            fi
+            echo '== A12s 5.10 DTS build list =='
+            sed -n '1,35p' kernel-5.10/arch/arm64/boot/dts/Makefile
+            echo '== A21s 5.10 port readiness =='
+            if grep -qi 'a21s' kernel-5.10/arch/arm64/boot/dts/Makefile; then
+              echo 'A21s DTBO reference detected; verify implementation and compile'
+            else
+              echo 'BLOCKED: no A21s DTBO target in 5.10 DTS Makefile; hardware port required'
+            fi
+            echo 'No boot.img is produced by this job.'
+          } | tee report/a21s-4.19-vs-a12s-5.10.txt
+          cat report/a21s-4.19-vs-a12s-5.10.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile original A21s overlays as a syntax baseline (NOT FLASH READY)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq device-tree-compiler
+          mkdir -p report/a21s-dtbo-syntax
+          failed=0
+          for rev in r00 r01 r02 r03 r06; do
+            src="a21s-4.19/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_${rev}.dts"
+            dst="report/a21s-dtbo-syntax/a21s_eur_open_w00_${rev}.dtbo"
+            if test ! -f "$src"; then
+              echo "MISSING $src" | tee "report/a21s-dtbo-syntax/${rev}.log"
+              failed=$((failed+1))
+              continue
+            fi
+            if dtc -@ -I dts -O dtb -o "$dst" "$src" >"report/a21s-dtbo-syntax/${rev}.log" 2>&1; then
+              echo "SYNTAX PASS: $rev ($(stat -c%s "$dst") bytes)"
+            else
+              echo "SYNTAX FAIL: $rev"
+              failed=$((failed+1))
+              rm -f "$dst"
+            fi
+          done
+          echo "Syntax test failures: $failed" | tee report/a21s-dtbo-syntax/status.txt
+          echo 'These DTBOs are 4.19-era reference artifacts, NOT validated for 5.10 and NOT FLASHABLE.' >> report/a21s-dtbo-syntax/status.txt
+          test "$failed" -eq 0
+      - name: Compare A21s versus A12s peripherals
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 kernel-5.10/scripts/compare-a21s-dt-compatible.py \
+            a21s-4.19/arch/arm64/boot/dts/samsung/a21s \
+            kernel-5.10/arch/arm64/boot/dts/samsung/a12s \
+            report/a21s-vs-a12s-peripheral-compatibles.md
+          cat report/a21s-vs-a12s-peripheral-compatibles.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload comparison report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a21s-5-10-hardware-comparison
+          path: report/
+          if-no-files-found: warn
