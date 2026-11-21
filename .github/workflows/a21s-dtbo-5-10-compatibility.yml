@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/a21s-dtbo-5-10-compatibility.yml'
       - 'scripts/check-dtbo-symbols.py'
+      - 'scripts/check-dtbo-fixup-locations.py'
 jobs:
   overlay-compatibility:
     runs-on: ubuntu-22.04
@@ -130,6 +131,12 @@ jobs:
             results/a21s-r02.dtbo results/a21s-r03.dtbo results/a21s-r06.dtbo \
             --report results/a21s-patched-symbol-target-check.txt || true
           cat results/a21s-patched-symbol-target-check.txt | tee -a results/SUMMARY.txt
+          echo '== Overlay fixup entry location validation ==' | tee -a results/SUMMARY.txt
+          python3 kernel-5.10/scripts/check-dtbo-fixup-locations.py \
+            results/a21s-r00.dtbo results/a21s-r01.dtbo \
+            results/a21s-r02.dtbo results/a21s-r03.dtbo results/a21s-r06.dtbo \
+            --report results/a21s-fixup-location-errors.txt || true
+          cat results/a21s-fixup-location-errors.txt | tee -a results/SUMMARY.txt
           echo '== Static overlay fixup diagnostics ==' | tee -a results/SUMMARY.txt
           # Examine dtc's external references (__fixups__) and base symbols.
           # A21s may use numeric phandles without fixups, which cannot be mapped
