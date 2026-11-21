@@ -59,6 +59,33 @@ jobs:
             echo 'No boot.img is produced by this job.'
           } | tee report/a21s-4.19-vs-a12s-5.10.txt
           cat report/a21s-4.19-vs-a12s-5.10.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile original A21s overlays as a syntax baseline (NOT FLASH READY)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq device-tree-compiler
+          mkdir -p report/a21s-dtbo-syntax
+          failed=0
+          for rev in r00 r01 r02 r03 r06; do
+            src="a21s-4.19/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_${rev}.dts"
+            dst="report/a21s-dtbo-syntax/a21s_eur_open_w00_${rev}.dtbo"
+            if test ! -f "$src"; then
+              echo "MISSING $src" | tee "report/a21s-dtbo-syntax/${rev}.log"
+              failed=$((failed+1))
+              continue
+            fi
+            if dtc -@ -I dts -O dtb -o "$dst" "$src" >"report/a21s-dtbo-syntax/${rev}.log" 2>&1; then
+              echo "SYNTAX PASS: $rev ($(stat -c%s "$dst") bytes)"
+            else
+              echo "SYNTAX FAIL: $rev"
+              failed=$((failed+1))
+              rm -f "$dst"
+            fi
+          done
+          echo "Syntax test failures: $failed" | tee report/a21s-dtbo-syntax/status.txt
+          echo 'These DTBOs are 4.19-era reference artifacts, NOT validated for 5.10 and NOT FLASHABLE.' >> report/a21s-dtbo-syntax/status.txt
+          test "$failed" -eq 0
       - name: Upload comparison report
         if: always()
         uses: actions/upload-artifact@v4
