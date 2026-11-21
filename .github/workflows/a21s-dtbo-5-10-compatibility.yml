@@ -7,6 +7,7 @@ on:
     branches: [a21s-5-10-port-preflight]
     paths:
       - '.github/workflows/a21s-dtbo-5-10-compatibility.yml'
+      - 'scripts/check-dtbo-symbols.py'
 jobs:
   overlay-compatibility:
     runs-on: ubuntu-22.04
@@ -80,6 +81,12 @@ jobs:
           echo "PASS=$success FAIL=$failed" | tee -a results/SUMMARY.txt
           echo 'No boot.img or validated A21s Linux 5.10 kernel is produced.' | tee -a results/SUMMARY.txt
           echo 'PASS only means fdtoverlay could apply, not that drivers, pinctrl, clocks, modules, or boot work.' | tee -a results/SUMMARY.txt
+          python3 kernel-5.10/scripts/check-dtbo-symbols.py \
+            results/s5e3830_5.10.dtb \
+            results/a21s-r00.dtbo results/a21s-r01.dtbo \
+            results/a21s-r02.dtbo results/a21s-r03.dtbo results/a21s-r06.dtbo \
+            --report results/a21s-missing-base-symbols.txt || true
+          cat results/a21s-missing-base-symbols.txt | tee -a results/SUMMARY.txt
           echo '== Static overlay fixup diagnostics ==' | tee -a results/SUMMARY.txt
           # Examine dtc's external references (__fixups__) and base symbols.
           # A21s may use numeric phandles without fixups, which cannot be mapped
