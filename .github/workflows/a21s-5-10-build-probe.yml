@@ -1,5 +1,7 @@
 name: Linux 5.10 toolchain build probe (NOT AN A21S PORT)
 on:
+  pull_request:
+    branches: [android13-5.10-lts]
   workflow_dispatch:
     inputs:
       config_target:
