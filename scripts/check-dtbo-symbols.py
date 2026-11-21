@@ -1,24 +1,39 @@
 #!/usr/bin/env python3
-"""Read-only diagnostic of unresolved DTBO external labels in a base DTB.
-Not a kernel port or safe flash artifact.
-"""
-import argparse, subprocess, pathlib, re, sys
+"""Report *effective* DTBO fixup targets in an actual base DTB. Read-only."""
+import argparse
+import pathlib
+import re
+import subprocess
 p=argparse.ArgumentParser()
 p.add_argument("base")
-p.add_argument("overlays", nargs="+")
-p.add_argument("--report", required=True)
+p.add_argument("overlays",nargs="+")
+p.add_argument("--report",required=True)
 a=p.parse_args()
-def labels(dtbo, section):
-    text=subprocess.check_output(["dtc","-I","dtb","-O","dts",dtbo],text=True,stderr=subprocess.DEVNULL)
-    m=re.search(r'\b'+re.escape(section)+r'\s*\{(.*?)\n\s*\};',text,re.S)
-    if not m: return set()
-    return set(re.findall(r'^\s*([A-Za-z_][\w,.-]*)\s*=',m.group(1),re.M))
-base=labels(a.base,"__symbols__")
-out=[f"Base DTB exports {len(base)} symbols. Missing fixup symbols are an unresolved overlay ABI problem, NOT evidence of hardware boot readiness."]
+def run(*args):
+    return subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+def dtc_text(file):
+    q=run("dtc","-I","dtb","-O","dts",file)
+    if q.returncode: raise RuntimeError(q.stderr[:800])
+    return q.stdout
+def section(text, name):
+    # Dtc output section key-value properties have one indentation level.
+    m=re.search(r"\b"+re.escape(name)+r"\s*\{(.*?)\n\s*\};",text,re.S)
+    return {} if not m else dict(re.findall(r'^\s*([\w,.-]+)\s*=\s*"([^"]*)";',m.group(1),re.M))
+base=section(dtc_text(a.base),"__symbols__")
+out=[f"Base symbols: {len(base)}"]
+bad_total=0
 for ov in a.overlays:
-    needed=labels(ov,"__fixups__")
-    missing=sorted(needed-base)
-    out.extend([f"\n{pathlib.Path(ov).name}: needs={len(needed)}, missing={len(missing)}",
-                "Missing: "+(", ".join(missing) if missing else "(none)")])
-    print(out[-2]);print(out[-1])
-path=pathlib.Path(a.report);path.parent.mkdir(parents=True,exist_ok=True);path.write_text("\n".join(out)+"\n")
+    req=section(dtc_text(ov),"__fixups__")
+    missing=sorted(set(req)-set(base))
+    dangling=[]
+    for sym in sorted(set(req)&set(base)):
+        path=base[sym]
+        if run("fdtget","-p",a.base,path).returncode:
+            dangling.append((sym,path))
+    lines=[f"\n{pathlib.Path(ov).name}: fixup_labels={len(req)} missing_labels={len(missing)} dangling_base_paths={len(dangling)}",
+           "MISSING: "+(", ".join(missing) if missing else "(none)")]
+    lines += [f"DANGLING: {name} -> {target}" for name,target in dangling]
+    out.extend(lines)
+    bad_total+=len(missing)+len(dangling)
+pathlib.Path(a.report).write_text("\n".join(out)+"\n")
+print("\n".join(out))
