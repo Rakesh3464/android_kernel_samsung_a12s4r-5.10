@@ -1,36 +1,33 @@
-name: A21s 5.10 port feasibility check (NOT FLASH READY)
+name: A21s 5.10 source audit (NOT FLASH READY)
 on:
   workflow_dispatch:
   push:
     branches: [a21s-5-10-port-preflight]
-    paths: ['.github/workflows/a21s-5-10-port-preflight.yml']
+    paths:
+      - '.github/workflows/a21s-5-10-port-preflight.yml'
+      - 'scripts/a21s-port-audit.sh'
 jobs:
   inspect:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
-      - name: Inspect vendor build configuration
+      - name: Run A21s source inspection
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p report
-          { 
-            echo '== kernel version =='
-            sed -n '1,6p' Makefile
-            echo '== build configs =='
-            find . -maxdepth 3 -name 'build.config*' -type f | head -60
-            echo '== available defconfigs =='
-            find arch/arm64/configs -maxdepth 2 -type f \( -name '*3830*' -o -name '*850*' -o -name '*a12*' -o -name '*a21*' -o -name '*gki*' \) | sort | head -100
-            echo '== A21s device tree support =='
-            find arch/arm64/boot/dts -type f \( -iname '*a21*' -o -iname '*exynos850*' -o -iname '*s5e3830*' \) | head -100
-            echo '== image size budget =='
-            echo 'A21s boot partition assumed 36 MiB = 37748736 bytes; confirm on device'
-            echo 'Kernel + ramdisk + DTB + boot headers must fit; no flashing supported.'
-          } | tee report/preflight.txt
-      - name: Upload report
+          bash scripts/a21s-port-audit.sh report
+          {
+            echo '## A21s Linux 5.10 source preflight'
+            echo 'This is an audit only. No kernel compilation or flash-ready image.'
+            echo ''
+            echo 'See uploaded artifact a21s-5-10-port-feasibility for full report.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload audit report
         if: always()
         uses: actions/upload-artifact@v4
         with:
