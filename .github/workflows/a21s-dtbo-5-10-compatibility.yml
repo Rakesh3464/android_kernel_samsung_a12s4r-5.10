@@ -63,7 +63,18 @@ jobs:
           echo "PASS=$success FAIL=$failed" | tee -a results/SUMMARY.txt
           echo 'No boot.img or validated A21s Linux 5.10 kernel is produced.' | tee -a results/SUMMARY.txt
           echo 'PASS only means fdtoverlay could apply, not that drivers, pinctrl, clocks, modules, or boot work.' | tee -a results/SUMMARY.txt
+          echo '== First overlay diagnostic lines ==' | tee -a results/SUMMARY.txt
+          for rev in r00 r01 r02 r03 r06; do
+            echo "=== $rev ===" | tee -a results/SUMMARY.txt
+            if test -f "results/${rev}-overlay.log"; then
+              sed -n '1,14p' "results/${rev}-overlay.log" | tee -a results/SUMMARY.txt
+            fi
+          done
           cat results/SUMMARY.txt >> "$GITHUB_STEP_SUMMARY"
+          if test "$failed" -gt 0; then
+            echo "::error::A21s overlays failed on Linux 5.10 base: $failed of 5. This is a compatibility blocker."
+            exit 1
+          fi
       - name: Upload compatibility logs only
         if: always()
         uses: actions/upload-artifact@v4
