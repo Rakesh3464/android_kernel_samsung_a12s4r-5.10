@@ -80,6 +80,24 @@ jobs:
           echo "PASS=$success FAIL=$failed" | tee -a results/SUMMARY.txt
           echo 'No boot.img or validated A21s Linux 5.10 kernel is produced.' | tee -a results/SUMMARY.txt
           echo 'PASS only means fdtoverlay could apply, not that drivers, pinctrl, clocks, modules, or boot work.' | tee -a results/SUMMARY.txt
+          echo '== Static overlay fixup diagnostics ==' | tee -a results/SUMMARY.txt
+          # Examine dtc's external references (__fixups__) and base symbols.
+          # A21s may use numeric phandles without fixups, which cannot be mapped
+          # to 5.10 automatically; distinguish that case explicitly.
+          dtc -I dtb -O dts -o results/base-decompiled.dts results/s5e3830_5.10.dtb 2>results/base-decompile.log || true
+          for rev in r00 r01 r02 r03 r06; do
+            dtc -I dtb -O dts -o "results/${rev}-decompiled.dts" "results/a21s-${rev}.dtbo" 2>"results/${rev}-decompile.log" || true
+            {
+              echo "=== $rev ==="
+              echo 'Overlay __fixups__ section:'
+              grep -A 16 -m 1 '__fixups__ {' "results/${rev}-decompiled.dts" || echo 'No __fixups__ block found'
+              echo 'Potential numeric unresolved phandle placeholders:'
+              grep -n -m 8 -E '<0xffffffff|0xffffffff' "results/${rev}-decompiled.dts" | cut -c 1-170 || true
+              echo 'Root target paths:'
+              grep -n -m 8 'target-path' "results/${rev}-decompiled.dts" | cut -c 1-170 || true
+            } | tee "results/${rev}-fixups-summary.txt" | tee -a results/SUMMARY.txt
+          done
+          echo 'NOTE: FDT_ERR_NOTFOUND does not identify the missing node; compare fixups with 5.10 __symbols__ before changing any phandle.' | tee -a results/SUMMARY.txt
           echo '== First overlay diagnostic lines ==' | tee -a results/SUMMARY.txt
           for rev in r00 r01 r02 r03 r06; do
             echo "=== $rev ===" | tee -a results/SUMMARY.txt
