@@ -43,6 +43,23 @@ jobs:
             exit 1
           fi
           echo '5.10 base DTS syntax compiled successfully.' | tee results/SUMMARY.txt
+          echo '== A12s own DTBO positive control on the same 5.10 base ==' | tee -a results/SUMMARY.txt
+          a12s=kernel-5.10/arch/arm64/boot/dts/samsung/a12s/a12s_eur_open_w00_r00.dts
+          if dtc -@ -I dts -O dtb -o results/a12s-control.dtbo "$a12s" >results/a12s-control-dtc.log 2>&1; then
+            if fdtoverlay -i results/s5e3830_5.10.dtb -o results/a12s-control-combined.dtb results/a12s-control.dtbo >results/a12s-control-overlay.log 2>&1; then
+              echo 'POSITIVE CONTROL PASS: A12s own overlay applied' | tee -a results/SUMMARY.txt
+            else
+              echo 'POSITIVE CONTROL FAIL: even the matching A12s overlay did not apply; base/overlay test methodology may be invalid.' | tee -a results/SUMMARY.txt
+              sed -n '1,18p' results/a12s-control-overlay.log | tee -a results/SUMMARY.txt
+            fi
+          else
+            echo 'POSITIVE CONTROL DTS compilation FAIL; see a12s-control-dtc.log' | tee -a results/SUMMARY.txt
+          fi
+          echo '== Inspect root targets and placeholder phandles ==' | tee -a results/SUMMARY.txt
+          for src in a21s-4.19/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_r00.dts "$a12s"; do
+            echo "SOURCE: $src" | tee -a results/SUMMARY.txt
+            grep -m 8 -E 'target-path|target =|0xffffffff' "$src" | cut -c1-200 | tee -a results/SUMMARY.txt || true
+          done
           success=0
           failed=0
           for rev in r00 r01 r02 r03 r06; do
