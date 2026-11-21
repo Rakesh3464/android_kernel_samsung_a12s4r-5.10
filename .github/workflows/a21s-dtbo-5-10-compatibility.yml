@@ -109,6 +109,13 @@ jobs:
             results/a21s-r02.dtbo results/a21s-r03.dtbo results/a21s-r06.dtbo \
             --report results/a21s-missing-base-symbols.txt || true
           cat results/a21s-missing-base-symbols.txt | tee -a results/SUMMARY.txt
+          echo '== Validate actual target paths after chosen-symbol probe ==' | tee -a results/SUMMARY.txt
+          python3 kernel-5.10/scripts/check-dtbo-symbols.py \
+            results/s5e3830_chosen_probe.dtb \
+            results/a21s-r00.dtbo results/a21s-r01.dtbo \
+            results/a21s-r02.dtbo results/a21s-r03.dtbo results/a21s-r06.dtbo \
+            --report results/a21s-patched-symbol-target-check.txt || true
+          cat results/a21s-patched-symbol-target-check.txt | tee -a results/SUMMARY.txt
           echo '== Static overlay fixup diagnostics ==' | tee -a results/SUMMARY.txt
           # Examine dtc's external references (__fixups__) and base symbols.
           # A21s may use numeric phandles without fixups, which cannot be mapped
