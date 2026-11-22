@@ -55,6 +55,20 @@ jobs:
             fdtput -t s results/s5e3830_chosen_probe.dtb /__symbols__ chosen /chosen
             echo 'Added chosen => /chosen symbol in temporary DTB, NOT kernel source' | tee -a results/SUMMARY.txt
           fi
+          # A fixup label alone is insufficient: libfdt needs a phandle
+          # at /chosen. Assign an unused value in the disposable DTB only.
+          if ! fdtget -t x results/s5e3830_chosen_probe.dtb /chosen phandle >/dev/null 2>&1; then
+            next_phandle=$(python3 - <<'PY'
+import re, subprocess
+s = subprocess.check_output(['dtc','-I','dtb','-O','dts','results/s5e3830_chosen_probe.dtb'], stderr=subprocess.DEVNULL, text=True)
+used = [int(x, 16) for x in re.findall(r'\\b(?:linux,)?phandle\\s*=\\s*<0x([0-9a-fA-F]+)>', s)]
+print(max(used + [0]) + 1)
+PY
+            )
+            test "$next_phandle" -lt 4294967295
+            fdtput -t x results/s5e3830_chosen_probe.dtb /chosen phandle "$next_phandle"
+            echo "Assigned unused /chosen phandle=$next_phandle in temporary DTB only" | tee -a results/SUMMARY.txt
+          fi
           echo '== A21s native 4.19 base positive control ==' | tee -a results/SUMMARY.txt
           native=a21s-4.19/arch/arm64/boot/dts/exynos/exynos3830.dts
           if dtc -@ -I dts -O dtb -o results/a21s-native-4.19-base.dtb "$native" >results/native-base-dtc.log 2>&1; then
