@@ -43,6 +43,12 @@ jobs:
           print("\n".join(results))
           PY
           cat results/A21S_DRIVER_GAPS.txt >>"$GITHUB_STEP_SUMMARY"
+          missing=$(grep -c '^MISSING_OR_DISABLED ' results/A21S_DRIVER_GAPS.txt || true)
+          if test "$missing" -gt 0; then
+            echo "::error::A21s driver configuration incomplete: $missing required symbols are not enabled in Linux 5.10. DO NOT FLASH."
+            exit 1
+          fi
+          echo "::notice::All requested driver config symbols resolved; still not a hardware boot validation."
       - name: Upload A21s driver gap report
         if: always()
         uses: actions/upload-artifact@v4
