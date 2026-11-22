@@ -71,6 +71,9 @@ jobs:
             stat -c 'Image.gz bytes: %s' out/arch/arm64/boot/Image.gz | tee -a results/compile-status.txt
           else
             echo 'Experimental A21s-config compile FAIL; examine log.' | tee -a results/compile-status.txt
+            echo 'First compiler errors with context:' | tee -a results/compile-status.txt
+            grep -n -m 12 -B 5 -A 8 -E '(^|[ :])(fatal error:|error:|undefined reference to|No rule to make target)' results/a21s-experimental-compile.log | head -n 150 | tee -a results/compile-status.txt || true
+            echo 'Build tail:' | tee -a results/compile-status.txt
             tail -n 35 results/a21s-experimental-compile.log | tee -a results/compile-status.txt
             exit 1
           fi
