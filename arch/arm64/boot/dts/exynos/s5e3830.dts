@@ -5375,6 +5375,8 @@
 	};
 
 	chosen {
+		/* A21s DTBO fixup target: requires a stable nonzero phandle. */
+		phandle = <0x164>;
 		bootargs = "console=ram s3c2410_wdt.tmr_atboot=1 clocksource=arch_sys_counter clk_ignore_unused printk.devkmsg=on firmware_class.path=/vendor/firmware rcupdate.rcu_expedited=1 transparent_hugepage=never loop.max_part=7 androidboot.hardware=s5e3830 androidboot.boot_devices=12100000.dwmmc0 swiotlb=noforce cgroup.memory=nokmem disable_dma32=on allow_file_spec_access";
 		linux,initrd-start = <0x84000000>;
 		linux,initrd-end = <0x847fffff>;
@@ -6274,6 +6276,7 @@
 	};
 
 	__symbols__ {
+		chosen = "/chosen";
 		pinctrl_0 = "/pinctrl@11850000";
 		gpa0 = "/pinctrl@11850000/gpa0";
 		gpa1 = "/pinctrl@11850000/gpa1";
