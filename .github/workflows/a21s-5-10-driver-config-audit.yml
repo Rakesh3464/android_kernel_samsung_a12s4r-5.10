@@ -1,0 +1,51 @@
+name: A21s 5.10 device driver configuration audit (NOT FLASHABLE)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [android13-5.10-lts]
+  push:
+    branches: [a21s-5-10-port-preflight]
+    paths:
+      - 'arch/arm64/configs/exynos850-a21snsxx-port-probe_defconfig'
+      - '.github/workflows/a21s-5-10-driver-config-audit.yml'
+jobs:
+  kconfig-audit:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Kconfig dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y bc bison flex libssl-dev libelf-dev clang lld gcc-aarch64-linux-gnu
+      - name: Audit A21s panel camera touch audio and power symbols against real 5.10 Kconfig
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          cfg=arch/arm64/configs/exynos850-a21snsxx-port-probe_defconfig
+          cp "$cfg" results/requested-a21s-port-probe.config
+          make O=out ARCH=arm64 CC=clang LD=ld.lld CROSS_COMPILE=aarch64-linux-gnu- exynos850-a21snsxx-port-probe_defconfig >results/kconfig.log 2>&1
+          cp out/.config results/resolved-5.10.config
+          python3 - <<'PY'
+          import pathlib,re
+          requested=pathlib.Path("results/requested-a21s-port-probe.config").read_text()
+          resolved=pathlib.Path("results/resolved-5.10.config").read_text()
+          want={k:v for k,v in re.findall(r"^CONFIG_(\w+)=(.+)$",requested,re.M)}
+          got={k:v for k,v in re.findall(r"^CONFIG_(\w+)=(.+)$",resolved,re.M)}
+          pat=re.compile(r"(A21S|HIMAX|HI1336|S2MU106|AUD3004X|SSP_A21S|CAMERA_AAS_V21S)")
+          required={k:v for k,v in want.items() if pat.search(k) and v=="y"}
+          results=[]
+          for k,v in sorted(required.items()):
+              results.append(f"{'SUPPORTED' if got.get(k)==v else 'MISSING_OR_DISABLED'} CONFIG_{k}: requested={v}, resolved={got.get(k,'not set')}")
+          results+=["",f"A21s-specific requested: {len(required)}",f"Matched: {sum(got.get(k)==v for k,v in required.items())}",f"Missing/disabled: {sum(got.get(k)!=v for k,v in required.items())}","NOT FLASHABLE: device drivers are unported unless all required symbols and runtime behavior are verified."]
+          pathlib.Path("results/A21S_DRIVER_GAPS.txt").write_text("\n".join(results)+"\n")
+          print("\n".join(results))
+          PY
+          cat results/A21S_DRIVER_GAPS.txt >>"$GITHUB_STEP_SUMMARY"
+      - name: Upload A21s driver gap report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a21s-5-10-driver-gap-report-NOT-FLASHABLE
+          path: results/
