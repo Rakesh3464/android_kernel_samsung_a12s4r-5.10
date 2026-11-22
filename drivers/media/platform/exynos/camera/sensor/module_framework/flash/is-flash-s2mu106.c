@@ -23,15 +23,12 @@
 
 /* MUIC header file */
 #include <linux/muic/common/muic.h>
-#include <linux/muic/slsi/s2mu106/s2mu106-muic.h>
-#include <linux/muic/slsi/s2mu106/s2mu106-muic-hv.h>
-#include <linux/usb/typec/slsi/common/usbpd_ext.h>
 
 #include "is-device-sensor.h"
 #include "is-device-sensor-peri.h"
 #include "is-core.h"
 
-extern int muic_afc_get_voltage(void);
+/* muic_afc_get_voltage() is declared by linux/muic/common/muic.h. */
 
 #define CAPTURE_MAX_TOTAL_CURRENT	(1500)
 #define TORCH_MAX_TOTAL_CURRENT		(150)
