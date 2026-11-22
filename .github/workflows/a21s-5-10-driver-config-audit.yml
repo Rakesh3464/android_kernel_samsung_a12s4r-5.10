@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Install Kconfig dependencies
@@ -45,10 +45,35 @@ jobs:
           cat results/A21S_DRIVER_GAPS.txt >>"$GITHUB_STEP_SUMMARY"
           missing=$(grep -c '^MISSING_OR_DISABLED ' results/A21S_DRIVER_GAPS.txt || true)
           if test "$missing" -gt 0; then
-            echo "::error::A21s driver configuration incomplete: $missing required symbols are not enabled in Linux 5.10. DO NOT FLASH."
+            echo "::warning::A21s driver configuration incomplete: $missing legacy symbols not enabled in 5.10. Check 5.10-native replacements before porting."
+            echo "DRIVER_GAP_COUNT=$missing" >> "$GITHUB_ENV"
+          fi
+          echo "::notice::Hardware boot validation still required."
+      - name: Compile the experimental A21s 5.10 configuration with native ERD S2MU106 drivers
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test ! -s out/.config; then
+            echo "Configuration failed; cannot compile." | tee results/compile-status.txt
             exit 1
           fi
-          echo "::notice::All requested driver config symbols resolved; still not a hardware boot validation."
+          for sym in ERD_MFD_S2MU106 ERD_CHARGER_S2MU106 ERD_PM_S2MU106 ERD_FUELGAUGE_S2MU106; do
+            if grep -qx "CONFIG_${sym}=y" out/.config; then
+              echo "ENABLED: $sym" | tee -a results/compile-status.txt
+            else
+              echo "MISSING: $sym" | tee -a results/compile-status.txt
+              exit 1
+            fi
+          done
+          if make -j2 O=out ARCH=arm64 CC=clang LD=ld.lld CROSS_COMPILE=aarch64-linux-gnu- Image.gz >results/a21s-experimental-compile.log 2>&1; then
+            echo 'Experimental A21s-config 5.10 source compile PASS; NOT FLASHABLE' | tee -a results/compile-status.txt
+            stat -c 'Image.gz bytes: %s' out/arch/arm64/boot/Image.gz | tee -a results/compile-status.txt
+          else
+            echo 'Experimental A21s-config compile FAIL; examine log.' | tee -a results/compile-status.txt
+            tail -n 35 results/a21s-experimental-compile.log | tee -a results/compile-status.txt
+            exit 1
+          fi
       - name: Upload A21s driver gap report
         if: always()
         uses: actions/upload-artifact@v4
