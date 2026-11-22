@@ -1,0 +1,107 @@
+name: Linux 5.10 toolchain build probe (NOT AN A21S PORT)
+on:
+  pull_request:
+    branches: [android13-5.10-lts]
+  workflow_dispatch:
+    inputs:
+      config_target:
+        description: 'Kernel configuration target for a toolchain smoke test'
+        required: false
+        default: 'exynos850-a12snsxx_defconfig'
+        type: choice
+        options: [exynos850-a12snsxx_defconfig, tinyconfig, defconfig]
+  push:
+    branches: [a21s-5-10-port-preflight]
+    paths:
+      - '.github/workflows/a21s-5-10-build-probe.yml'
+      - 'arch/arm64/boot/dts/exynos/s5e3830.dts'
+jobs:
+  compile-probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Check out original A21s device tree revisions
+        uses: actions/checkout@v4
+        with:
+          repository: Rakesh3464/atlas-new
+          ref: master
+          path: a21s-source
+          submodules: false
+          sparse-checkout: |
+            arch/arm64/boot/dts/samsung/a21s
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make clang lld llvm gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi python3 lz4 device-tree-compiler
+      - name: Probe ARM64 toolchain compilation and image size
+        shell: bash
+        env:
+          REQUESTED_CONFIG: ${{ inputs.config_target || 'exynos850-a12snsxx_defconfig' }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          {
+            echo 'Source version:'
+            head -n 6 Makefile
+            echo 'Compiler:'
+            clang --version | head -n 1
+            echo "Requested config target: $REQUESTED_CONFIG"
+            echo 'A12s vendor configuration is NOT an A21s config or hardware port.'
+            echo 'Available config examples:'
+            find arch/arm64/configs -type f -name '*defconfig' | head -n 40 || true
+          } | tee artifacts/preflight.txt
+          case "$REQUESTED_CONFIG" in exynos850-a12snsxx_defconfig|tinyconfig|defconfig) ;; *) exit 2;; esac
+          if ! make O=out ARCH=arm64 CC=clang LD=ld.lld CROSS_COMPILE=aarch64-linux-gnu- "$REQUESTED_CONFIG" > artifacts/config.log 2>&1; then
+            echo "FAIL: Kernel config target '$REQUESTED_CONFIG'." | tee artifacts/status.txt
+            exit 1
+          fi
+          cp out/.config artifacts/kernel-config.txt
+          if ! make -j2 O=out ARCH=arm64 CC=clang LD=ld.lld CROSS_COMPILE=aarch64-linux-gnu- Image.gz > artifacts/compile.log 2>&1; then
+            echo "FAIL: Generic Image.gz compilation; see compile.log" | tee artifacts/status.txt
+            exit 1
+          fi
+          image=out/arch/arm64/boot/Image.gz
+          test -s "$image"
+          size=$(stat -c%s "$image")
+          {
+            echo "A12s-source $REQUESTED_CONFIG Image.gz = $size bytes"
+            echo 'Reported A21s boot partition = 36 MiB (37,748,736 bytes), unverified on device'
+            echo 'Image.gz is NOT a boot.img; ramdisk, DTB, boot headers and partitions also matter.'
+            echo 'NOT FLASHABLE. No A21s-specific device tree, drivers or vendor ABI validation.'
+          } | tee artifacts/status.txt
+          # Save the kernel binary separately as a source-build reference ONLY.
+          # This is NOT an Android boot image or safe for flashing.
+          mkdir -p artifacts/nonflashable-kernel
+          cp "$image" artifacts/nonflashable-kernel/A12S_5.10_Image.gz_NOT_FLASHABLE
+          sha256sum artifacts/nonflashable-kernel/A12S_5.10_Image.gz_NOT_FLASHABLE > artifacts/nonflashable-kernel/SHA256SUMS.txt
+          budget=$((36*1024*1024))
+          echo "Raw boot-partition space remaining before ramdisk/DTB/header: $((budget-size)) bytes" >> artifacts/status.txt
+      - name: Assemble nonflashable A21s Linux 5.10 DTB and five DTBO reference files
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest=artifacts/nonflashable-a21s-dt-reference
+          mkdir -p "$dest"
+          dtc -@ -I dts -O dtb -o "$dest/5.10-base-s5e3830.dtb" arch/arm64/boot/dts/exynos/s5e3830.dts 2>"$dest/base-dtc.log"
+          for rev in r00 r01 r02 r03 r06; do
+            src="a21s-source/arch/arm64/boot/dts/samsung/a21s/a21s_eur_open_w00_${rev}.dts"
+            dtc -@ -I dts -O dtb -o "$dest/a21s-${rev}.dtbo" "$src" 2>"$dest/a21s-${rev}-dtc.log"
+            fdtoverlay -i "$dest/5.10-base-s5e3830.dtb" -o "$dest/a21s-${rev}-on-5.10-DIAGNOSTIC.dtb" "$dest/a21s-${rev}.dtbo"
+            echo "a21s ${rev}: overlay structure PASS" >> "$dest/RESULTS.txt"
+          done
+          echo 'NOT FLASHABLE: these DTBs are structural device-tree port references only.' >> "$dest/RESULTS.txt"
+          echo 'Kernel still uses A12s configuration, and vendor, panel, modem and ramdisk compatibility are unverified.' >> "$dest/RESULTS.txt"
+          (cd "$dest" && sha256sum *.dtb *.dtbo > SHA256SUMS.txt)
+          cat "$dest/RESULTS.txt" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs and size measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-5-10-toolchain-probe-logs
+          path: artifacts/
+          if-no-files-found: warn

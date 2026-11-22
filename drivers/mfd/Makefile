@@ -270,3 +270,7 @@ obj-$(CONFIG_MFD_INTEL_M10_BMC)   += intel-m10-bmc.o
 
 obj-$(CONFIG_MFD_S2MPU12)	+= s2mpu12_mfd.o
 s2mpu12_mfd-$(CONFIG_MFD_S2MPU12) += s2mpu12-core.o s2mpu12-irq.o
+
+# Exynos 850 S2MU106 MFD core and shared IRQ controller for ERD charging family.
+obj-$(CONFIG_ERD_MFD_S2MU106) += s2mu106_mfd.o
+s2mu106_mfd-y := s2mu106_core.o s2mu106_irq.o

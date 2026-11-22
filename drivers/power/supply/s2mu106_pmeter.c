@@ -19,6 +19,7 @@
  */
 #include <linux/mfd/samsung/s2mu106.h>
 #include <linux/power/s2mu106_pmeter.h>
+#include <linux/power/s2m_chg_manager.h> /* S2M power-supply property enum */
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/slab.h>

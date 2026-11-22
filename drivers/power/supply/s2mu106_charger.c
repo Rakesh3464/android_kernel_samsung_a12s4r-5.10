@@ -461,7 +461,7 @@ static int s2mu106_get_charging_health(struct s2mu106_charger_data *charger)
 	if (ret < 0)
 		pr_err("%s: Fail to execute property\n", __func__);
 
-	if (value.intval == POWER_SUPPLY_TYPE_USB_PD)
+	if (value.intval == POWER_SUPPLY_TYPE_PDIC)
 		return POWER_SUPPLY_S2M_HEALTH_UNDERVOLTAGE;
 	else
 		return POWER_SUPPLY_HEALTH_GOOD;

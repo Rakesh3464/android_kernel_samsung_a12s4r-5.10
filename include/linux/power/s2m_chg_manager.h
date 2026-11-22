@@ -68,12 +68,17 @@ static char *health_str[] = {
 	"OverheatLimit",
 };
 
+/*
+ * Keep the S2M private type values distinct from the Linux 5.10
+ * power_supply_type enum. Several names already exist in power_supply.h.
+ * The legacy numeric values remain unchanged for the S2M interface.
+ */
 enum s2m_power_supply_type {
-	POWER_SUPPLY_TYPE_MAX = 0xFF,
-	POWER_SUPPLY_TYPE_OTG = 0xFF,
-	POWER_SUPPLY_TYPE_HV_MAINS,
+	S2M_POWER_SUPPLY_TYPE_MAX = 0xFF,
+	S2M_POWER_SUPPLY_TYPE_OTG = 0xFF,
+	S2M_POWER_SUPPLY_TYPE_HV_MAINS,
 	POWER_SUPPLY_TYPE_PREPARE_TA,
-	POWER_SUPPLY_TYPE_SMART_NOTG,
+	S2M_POWER_SUPPLY_TYPE_SMART_NOTG,
 	POWER_SUPPLY_TYPE_USB_PD_APDO,		/* Direct Charger */
 	POWER_SUPPLY_TYPE_END,
 };
