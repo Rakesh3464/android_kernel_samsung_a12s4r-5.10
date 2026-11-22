@@ -197,11 +197,11 @@ jobs:
             fi
           done
           cat results/SUMMARY.txt >> "$GITHUB_STEP_SUMMARY"
-          if test "$patched_failed" -gt 0 || test "$patched_success" -ne 5; then
-            echo "::error::A21s overlays still fail even with chosen symbol repaired in temporary base; DO NOT FLASH."
+          if test "$failed" -gt 0 || test "$success" -ne 5; then
+            echo "::error::A21s overlays still fail on the actual 5.10 source DTB. Porting blocked."
             exit 1
           fi
-          echo "::notice::All overlays applied to temporary chosen-symbol base. Porting and real hardware validation still required."
+          echo "::notice::All five A21s overlays structurally apply to the actual Linux 5.10 source DTB. Driver ABI and boot readiness UNVERIFIED."
       - name: Upload compatibility logs only
         if: always()
         uses: actions/upload-artifact@v4
